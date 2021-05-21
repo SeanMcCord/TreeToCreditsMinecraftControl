@@ -6,6 +6,8 @@ import {mineflayer as mineflayerViewer} from 'prismarine-viewer';
 import mainWork from './lib/main_work.js';
 import testing from './lib/testing.js';
 import pathfinderViewer from './lib/pathfinder_viewer.js';
+import autoeat from 'mineflayer-auto-eat';
+
 import repl from 'repl';
 
 const bot = mineflayer.createBot({
@@ -14,12 +16,12 @@ const bot = mineflayer.createBot({
 });
 
 bot.loadPlugin(collectblock);
+bot.loadPlugin(autoeat)
 
 bot.once('spawn', () => {
   const mcData = data(bot.version);
   const eventLogger = new EventLogger(bot, mcData);
   bot.on('chat', eventLoggerChatControl(bot, eventLogger));
-
 
   bot.on('chat', (username, message) => {
     if (username === bot.username) {
@@ -44,6 +46,18 @@ bot.once('spawn', () => {
     if (message.includes('view')) {
       mineflayerViewer(bot, {port: 3000});
       pathfinderViewer(bot);
+    }
+  });
+  bot.autoEat.options = {
+    priority: 'foodPoints',
+    startAt: 14,
+    bannedFood: [],
+  }
+  bot.on('health', () => {
+    if (bot.food === 20) {
+      bot.autoEat.disable();
+    } else {
+      bot.autoEat.enable();
     }
   });
 });
