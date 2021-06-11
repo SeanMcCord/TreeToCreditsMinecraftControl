@@ -1,6 +1,7 @@
 import http from 'http';
 import url from 'url';
 import client from 'prom-client';
+import {logger} from './lib/logger.js';
 
 // Create a Registry which registers the metrics
 const register = new client.Registry()
@@ -53,30 +54,24 @@ bot.loadPlugin(autoeat);
 bot.once('spawn', () => {
   const mcData = data(bot.version);
   const eventLogger = new EventLogger(bot, mcData);
-  eventLogger.enable('autoeat');
-  eventLogger.enable('pathfinderNodeTime');
+  // eventLogger.enable('autoeat');
+  // eventLogger.enable('pathfinderNodeTime');
   eventLogger.enable('pathfinder');
   //eventLogger.enable('digging');
   bot.on('chat', eventLoggerChatControl(bot, eventLogger));
+  mineflayerViewer(bot, {port: 3001});
+  pathfinderViewer(bot);
+  mainWork(bot, mcData).catch(logger.info);
 
   bot.on('chat', (username, message) => {
     if (username === bot.username) {
       return;
     }
     if (message.includes('start')) {
-      mainWork(bot, mcData).catch(console.log);
+      mainWork(bot, mcData).catch(logger.info);
     }
     if (message.includes('test')) {
-      testing(bot, mcData).catch(console.log);
-    }
-    if (message.includes('watchEntity')) {
-      const nearestEntityId = bot.nearestEntity().id;
-      bot._client.on('entity_metadata', (packet) => {
-        if (packet.entityId !== nearestEntityId) {
-          return;
-        }
-        console.log({nearestEntityId, metadata: packet.metadata});
-      });
+      testing(bot, mcData).catch(logger.info);
     }
     if (message.includes('STOP')) {
       bot.quit();
@@ -99,7 +94,7 @@ bot.once('spawn', () => {
     bannedFood: [],
   }
   bot.on('health', () => {
-    // console.log({food: bot.food, health: bot.health});
+    // logger.info({food: bot.food, health: bot.health});
     if (bot.food === 20) {
       bot.autoEat.disable();
       bot.autoEat.options.startAt = 14;
