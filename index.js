@@ -1,33 +1,15 @@
-import http from 'http';
-import url from 'url';
-import client from 'prom-client';
+import getConfig from './lib/config.js';
+import setupPromClient from './lib/prom_setup.js';
 import {logger} from './lib/logger.js';
 
-// Create a Registry which registers the metrics
-const register = new client.Registry()
+process.on('unhandledRejection', r => {
+  console.log({r})
+});
 
-// Add a default label which is added to all metrics
-register.setDefaultLabels({
-  app: 'example-nodejs-app'
-})
+// TODO: add the graphql port into this
+const config = getConfig();
 
-// Enable the collection of default metrics
-client.collectDefaultMetrics({register})
-
-// Define the HTTP server
-const server = http.createServer(async (req, res) => {
-  // Retrieve route from request object
-  const route = url.parse(req.url).pathname
-
-  if (route === '/metrics') {
-    // Return all metrics the Prometheus exposition format
-    res.setHeader('Content-Type', register.contentType)
-    res.end(await register.metrics())
-  }
-})
-
-// Start the HTTP server which exposes the metrics on http://localhost:8080/metrics
-server.listen(8080)
+const [promClient, promRegister] = setupPromClient(config.metricsPort, config.speedrunId);
 
 import data from 'minecraft-data';
 import mineflayer from 'mineflayer';
@@ -39,13 +21,17 @@ import testing from './lib/testing.js';
 import pathfinderViewer from './lib/pathfinder_viewer.js';
 import autoeat from 'mineflayer-auto-eat';
 import {plugin as pvp} from 'mineflayer-pvp';
+import registerPathfinderCalculationMetrics from './lib/detailed_metrics.js';
 
 import repl from 'repl';
 
 const bot = mineflayer.createBot({
-  host: '192.168.1.163',
+  host: config.mcServerHost,
+  port: config.mcServerPort,
   username: 'Player'
 });
+
+registerPathfinderCalculationMetrics(bot, promClient, promRegister);
 
 bot.loadPlugin(collectblock);
 bot.loadPlugin(pvp);
@@ -55,11 +41,11 @@ bot.once('spawn', () => {
   const mcData = data(bot.version);
   const eventLogger = new EventLogger(bot, mcData);
   // eventLogger.enable('autoeat');
-  // eventLogger.enable('pathfinderNodeTime');
+  eventLogger.enable('pathfinderMoveTime');
   eventLogger.enable('pathfinder');
-  //eventLogger.enable('digging');
+  eventLogger.enable('digging');
   bot.on('chat', eventLoggerChatControl(bot, eventLogger));
-  mineflayerViewer(bot, {port: 3001});
+  mineflayerViewer(bot, {firstPerson: true, port: config.viewerPort});
   pathfinderViewer(bot);
   mainWork(bot, mcData).catch(logger.info);
 
@@ -71,12 +57,13 @@ bot.once('spawn', () => {
       mainWork(bot, mcData).catch(logger.info);
     }
     if (message.includes('test')) {
-      testing(bot, mcData).catch(logger.info);
+      testing(bot, mcData, config.vectorAPIPort).catch(logger.info);
     }
     if (message.includes('STOP')) {
       bot.quit();
       // TODO: find out why viewer prevents graceful exit even when close() is called.
       // https://github.com/PrismarineJS/prismarine-viewer/blob/6d527e3d6d6646acfa6c79fc7fa9e2afadb98cf8/lib/mineflayer.js#L85
+      process.exit(0)
     }
     if (message.includes('REPL')) {
       const context = repl.start('> ').context;
@@ -84,7 +71,7 @@ bot.once('spawn', () => {
       context.mcData = mcData;
     }
     if (message.includes('view')) {
-      mineflayerViewer(bot, {port: 3001});
+      mineflayerViewer(bot, {port: config.viewerPort});
       pathfinderViewer(bot);
     }
   });
