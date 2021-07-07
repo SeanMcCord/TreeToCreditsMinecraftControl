@@ -24,7 +24,7 @@ const getConfig = () => {
       {
         metricsPort: 8081,
         viewerPort: 3004,
-        mcServerPort: 44627,
+        mcServerPort: 3022,
         mcServerHost: 'localhost',
       }
     );
