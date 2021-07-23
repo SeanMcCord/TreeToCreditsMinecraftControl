@@ -1,20 +1,24 @@
 {
   "name": "TreeToCreditsMinecraftControl",
   "version": "1.0.0",
-  "main": "dist/index.js",
   "main": "dist/index.d.ts",
   "type": "module",
   "scripts": {
     "start": "node --trace-warnings index.js",
     "quietStart": "node index.js",
-    "startprof": "node --prof --trace-warnings index.js"
+    "startprof": "node --prof --trace-warnings index.js",
+    "build": "tsc",
+    "clean": "rm -r dist/* || true",
+    "test": "mocha"
   },
   "repository": "git@github.com:SeanMcCord/TreeToCreditsMinecraftControl.git",
   "author": "SeanMcCord <18744415+SeanMcCord@users.noreply.github.com>",
   "license": "MIT",
   "private": true,
   "dependencies": {
+    "@types/cytoscape": "^3.14.17",
     "cors": "^2.8.5",
+    "cytoscape": "^3.19.0",
     "express": "^4.17.1",
     "express-graphql": "^0.12.0",
     "graphql": "^15.5.0",
@@ -26,9 +30,15 @@
     "ngraph.graph": "^19.1.0",
     "pino": "^6.11.3",
     "prismarine-viewer": "^1.19.3",
-    "prom-client": "^13.1.0"
+    "prom-client": "^13.1.0",
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
+    "@types/chai": "^4.2.21",
+    "@types/mocha": "^8.2.3",
+    "chai": "^4.3.4",
+    "mocha": "^9.0.2",
+    "ts-node": "^10.1.0",
     "typescript": "^4.3.5"
   }
 }
