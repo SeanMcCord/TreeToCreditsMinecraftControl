@@ -6,14 +6,23 @@ const {Move, Movements, goals} = pathfinder;
 //
 // * They set a threshold for the number of times child nodes need to  be tested before moving to UCT. They set it to 15.
 
-export const testPath = (bot, mcData, executionTimeMillis: number, explorationFactor: number, itterationsMCTS: number) => {
+export const testPath = (bot, mcData, executionTimeMillis: number, explorationFactor: number, itterationsMCTS: number, efficiencyWeight: number, distanceWeight: number, goalPos) => {
+  if (efficiencyWeight > 1 || efficiencyWeight < 0) {
+    throw new Error('efficiencyWeight must be between 0 and 1 inclusive');
+  }
+  if (distanceWeight > 1 || distanceWeight < 0) {
+    throw new Error('distanceWeight must be between 0 and 1 inclusive');
+  }
   const movement = new Movements(bot, mcData);
 
   const p = bot.entity.position
   const dy = p.y - Math.floor(p.y)
   const b = bot.blockAt(p)
   const start = new Move(p.x, p.y + (b && dy > 0.001 && bot.entity.onGround && b.type !== 0 ? 1 : 0), p.z, movement.countScaffoldingItems(), 0);
-  const goal = new goals.GoalXZ(20, 20);
+  const manhattenDistanceToGoal = (pos): number => {
+    return Math.abs(goalPos.x - pos.x) + Math.abs(goalPos.y - pos.y) + Math.abs(goalPos.z - pos.z);
+  }
+  const goal = new goals.GoalBlock(goalPos.x, goalPos.y, goalPos.z);
 
   const initialState: State = {data: start, costToCome: start.cost, terminal: false};
 
@@ -34,7 +43,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, explorationFa
         },
         resultState: {
           data: neighbor,
-          costToCome: move.cost + neighbor.cost,
+          costToCome: state.costToCome + neighbor.cost,
           terminal: goal.isEnd(neighbor),
         }
       }
@@ -60,17 +69,25 @@ export const testPath = (bot, mcData, executionTimeMillis: number, explorationFa
     //     break;
     //   }
     // }
+    // const startDistance = goal.heuristic(startMove);
+    // const currentDistance = goal.heuristic(endMove);
+    const startDistance = manhattenDistanceToGoal(startMove);
+    const currentDistance = manhattenDistanceToGoal(endMove);
     const costToCome = endMove.costToCome;
-    const costReward = 0.5 + 0.5 / (costToCome + 1);
+    // Efficiency metric
+    let costReward = Math.abs(startDistance - currentDistance) / (costToCome + 1);
+    costReward = Math.min(Math.max(costReward, 0), 1);
+    costReward = (1 - efficiencyWeight) + efficiencyWeight * costReward;
 
-    const startDistance = goal.heuristic(startMove);
-    const currentDistance = goal.heuristic(endMove);
+    // Distance covered towards goal metric
     let distanceReward = 0.5;
     if (currentDistance < startDistance) {
       distanceReward = 0.5 + (0.5 * (startDistance - currentDistance) / startDistance);
     } else {
       distanceReward = (0.5 * startDistance) / currentDistance;
     }
+    distanceReward = Math.min(Math.max(distanceReward, 0), 1);
+    distanceReward = (1 - distanceWeight) + distanceWeight * distanceReward;
     // TODO: think about the result of this calculation on the search. Is this the best way to combine these rewards?
     const reward = costReward * distanceReward;
     const clampedReward = Math.min(Math.max(reward, 0), 1);

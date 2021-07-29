@@ -320,8 +320,12 @@ class Agent {
     await this.executeStop();
   }
 
-  testPath(timeBudgetMilis: number = 200, explorationFactor: number = 1 / Math.sqrt(2), itterations: number = 20) {
-    testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, explorationFactor, itterations);
+  goodValueTestPath() {
+    this.testPath(40, 0.0019, 10, 1.0, 1.0);
+  }
+
+  testPath(timeBudgetMilis: number = 200, explorationFactor: number = 1 / Math.sqrt(2), itterations: number = 20, efficiencyWeight: number = 0.3, distanceWeight: number = 1.0, goalPos = {x: 20, y: 64, z: 20}) {
+    testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, explorationFactor, itterations, efficiencyWeight, distanceWeight, goalPos);
   }
 }
 
