@@ -3,7 +3,7 @@ import {monteCarloTreeSearch, State, ActionResultGenerator, SimulateDefaultPolic
 
 describe('monteCarloTreeSearch', () => {
   it('works', () => {
-    const initialState: State = {data: [0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], costToCome: 0, terminal: false};
+    const initialState: State = {data: [0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], costToCome: 0, terminal: false, goalReached: false, distanceTraveled: 0};
     function* actionGenerator(state: State): ActionResultGenerator {
       for (let i = 0; i < state.data.length; i++) {
         if (state.data[i] === 1) {
@@ -11,6 +11,7 @@ describe('monteCarloTreeSearch', () => {
         }
         const stateClone = [...state.data];
         stateClone[i] = 1;
+        const statesExausted = stateClone.every((e) => e === 1);
         const result: ActionResult = {
           action: {
             data: i
@@ -18,7 +19,9 @@ describe('monteCarloTreeSearch', () => {
           resultState: {
             data: stateClone,
             costToCome: state.costToCome + 1,
-            terminal: stateClone.every((e) => e === 1),
+            terminal: statesExausted,
+            goalReached: statesExausted,
+            distanceTraveled: state.distanceTraveled + 1,
           }
         }
         yield (result);
@@ -29,7 +32,8 @@ describe('monteCarloTreeSearch', () => {
       return Math.random();
     }
     const explorationFactor = 1 / Math.sqrt(2);
-    const bestAction = monteCarloTreeSearch(initialState, actionGenerator, simulateDefaultPolicy, 200, explorationFactor);
-    console.log(bestAction);
+    const mixmaxFactor = 1.0;
+    const bestAction = monteCarloTreeSearch(initialState, actionGenerator, simulateDefaultPolicy, 200, mixmaxFactor, explorationFactor);
+    // console.log(bestAction);
   });
 });

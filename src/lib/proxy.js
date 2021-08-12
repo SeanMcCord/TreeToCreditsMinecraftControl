@@ -1,6 +1,5 @@
 import mc from 'minecraft-protocol';
 import mineflayer from 'mineflayer';
-// import {mineflayer as mineflayerViewer} from 'prismarine-viewer';
 import controls from './gui_direct_control.js';
 import repl from 'repl';
 import Agent from './agent.js';
@@ -20,6 +19,7 @@ import Agent from './agent.js';
 
 const proxyServerPort = 25564;
 const botServerPort = 25566;
+const mineflayerViewerPort = 3011;
 const states = mc.states
 let host = process.env.HOST
 let port = process.env.PORT | 25565
@@ -139,8 +139,5 @@ playerServer.on('login', (playerClient) => {
   const context = repl.start('> ').context;
   context.bot = bot;
   context.controls = controls;
-  context.agent = new Agent(bot);
-  // bot.once('spawn', () => {
-  //   mineflayerViewer(bot, {port: 3011});
-  // });
+  context.agent = new Agent(bot, {mineflayerViewerPort});
 })

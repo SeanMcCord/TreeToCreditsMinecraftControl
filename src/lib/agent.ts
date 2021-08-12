@@ -8,6 +8,11 @@ import control, {clearedState, cloneState, stateDiff, executeState, CompositeKey
 import {transformYawToMouseSpace, transformPitchToMouseSpace, mouseMoveWithinNoActionRegion} from './gui_mouse_transforms.js';
 import {performance} from 'perf_hooks';
 import {testPath} from './trailblazer/high_level_planner.js';
+import {mineflayer as mineflayerViewer} from 'prismarine-viewer';
+import pathViewer from './trailblazer/path_viewer.js';
+import pathfinderLib from 'mineflayer-pathfinder';
+const {goals, pathfinder} = pathfinderLib;
+import {TreeNode} from './trailblazer/monte_carlo_tree_search.js';
 
 // TODO: ensure only inventory operations do not occur while moving via key commands
 
@@ -17,21 +22,27 @@ const configurationToThreeVector = (config) => {
   return [config[0], config[1], config[2]];
 }
 
+export type AgentConfig = {
+  mineflayerViewerPort: number;
+}
+
 class Agent {
   private mineflayerBot;
   private mcData;
   private directlySetYaw = 0;
   private globalControlState: CompositeKeyStateMap;
-  constructor(mineflayerBot) {
+  constructor(mineflayerBot, config: AgentConfig) {
     this.mineflayerBot = mineflayerBot;
+    this.mineflayerBot.loadPlugin(pathfinder);
     // Only use the data we get from the proxy to move the bot
     this.mineflayerBot.physicsEnabled = false;
     this.globalControlState = clearedState();
     // TODO: handle yaw updates from the control system and the proxy.
-    this.mineflayerBot.on('spawn', () => {
+    this.mineflayerBot.once('spawn', () => {
       this.directlySetYaw = this.mineflayerBot.entity.yaw;
       // TODO: find out why we need to move a small ammount first.
       control.moveMouse(10, 0);
+      mineflayerViewer(this.mineflayerBot, {port: config.mineflayerViewerPort});
     });
     this.mcData = minecraftData(mineflayerBot.version);
     // Use the moves to set the velocity
@@ -321,11 +332,30 @@ class Agent {
   }
 
   goodValueTestPath() {
-    this.testPath(40, 0.0019, 10, 1.0, 1.0);
+    // TODO: wrap up these config values to make this more clear.
+    this.testPath(40, 1.0, 0.002, 0.20, 10, 0.1, 0.9, 0.3, {x: 60, y: 10, z: 70});
   }
 
-  testPath(timeBudgetMilis: number = 200, explorationFactor: number = 1 / Math.sqrt(2), itterations: number = 20, efficiencyWeight: number = 0.3, distanceWeight: number = 1.0, goalPos = {x: 20, y: 64, z: 20}) {
-    testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, explorationFactor, itterations, efficiencyWeight, distanceWeight, goalPos);
+  testPath(timeBudgetMilis: number = 200, mixmaxFactor: number = 0.125, explorationFactor: number = 1 / Math.sqrt(2), percentBetterNode: number = 0.20, itterations: number = 20, efficiencyWeight: number = 0.3, distanceWeight: number = 1.0, biasWeight: number = 0.3, goalPos = {x: 20, y: 64, z: 20}) {
+    const renderRootNode = (node: TreeNode) => {
+      pathViewer(this.mineflayerBot.viewer, node);
+    }
+    testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, mixmaxFactor, explorationFactor, percentBetterNode, itterations, efficiencyWeight, distanceWeight, biasWeight, goalPos, renderRootNode);
+  }
+
+  getPath(goalPos = {x: 20, y: 64, z: 20}, timeout: number = 200) {
+    const goal = new goals.GoalBlock(goalPos.x, goalPos.y, goalPos.z);
+    const movement = this.mineflayerBot.pathfinder.movements;
+
+    const result = this.mineflayerBot.pathfinder.getPathTo(movement, goal, timeout);
+    return this.finishPath(result);
+  }
+
+  async finishPath(priorResult: any) {
+    if (priorResult.status === 'timeout' || priorResult.status === 'success') {
+      return priorResult;
+    }
+    return this.finishPath(priorResult.context.compute());
   }
 }
 
