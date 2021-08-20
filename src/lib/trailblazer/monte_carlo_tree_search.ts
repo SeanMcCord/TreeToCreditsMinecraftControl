@@ -44,7 +44,8 @@ export type ActionResult = {
 
 export type ActionResultGenerator = Generator<ActionResult, undefined, undefined>;
 export type ActionGenerator = (state: State) => ActionResultGenerator;
-export type SimulateDefaultPolicy = (startState: State, endState: State) => number;
+export type SimulateDefaultPolicyRewardGenerator = Generator<number, number, undefined>;
+export type SimulateDefaultPolicyGenerator = (startState: State, endState: State) => SimulateDefaultPolicyRewardGenerator;
 
 export type ControlInput = {
   logDetails: boolean;
@@ -60,7 +61,7 @@ export type ItterativeMCTSGenerator = Generator<MCTSResponse, undefined, Control
 export function* itterativeMCTS(
   initialState: State,
   actionGenerator: ActionGenerator,
-  simulateDefaultPolicy: SimulateDefaultPolicy,
+  simulateDefaultPolicyGenerator: SimulateDefaultPolicyGenerator,
   timeLimitMillis: number,
   mixmaxFactor: number,
   explorationFactor: number,
@@ -90,26 +91,70 @@ export function* itterativeMCTS(
   let betterPathFound = [];
   let worseScoreNodeFound = 0;
   let totalCalculationTime = 0;
+  let defaultPolicyCalculationTime = 0;
   const transpositionMap = new Map<string, TreeNode>();
+  const transpositionCountMap = new Map<string, number>();
+  transpositionMap.set(rootNode.data.state.data.posHash, rootNode);
+  transpositionCountMap.set(rootNode.data.state.data.posHash, 1);
+  const duplicateNodeFound = (n: TreeNode): boolean => {
+    const hash = n.data.state.data.posHash;
+    if (transpositionMap.has(hash)) {
+      const previousNode = transpositionMap.get(hash);
+      if (n.data.state.terminal) {
+        backpropogateReward(n, 0);
+        return true;
+      }
+      if (previousNode.data.id === n.data.id) {
+        console.dir(previousNode, {depth: 6});
+        console.dir(n, {depth: 6});
+        return true;
+      }
+      const newCount = transpositionCountMap.get(hash) + 1;
+      transpositionCountMap.set(hash, newCount);
+      if (newCount <= 3) {
+        return false;
+      }
+      if (n.data.state.goalReached) {
+        return false;
+      }
+      worseScoreNodeFound += 1;
+      if (n.outEdges.length === 0) {
+        const edgeId = n.inEdge.id;
+        const index = n.inEdge.source.outEdges.findIndex((e: TreeEdge) => e.id === edgeId);
+        if (index !== -1) {
+          n.inEdge.source.outEdges.splice(index, 1);
+          return true;
+        }
+      }
+      return false;
+    } else {
+      newNodeCount += 1;
+      transpositionMap.set(hash, n);
+      transpositionCountMap.set(hash, 1);
+      return false;
+    }
+  }
   const clampReward = (n: TreeNode, reward: number): number => {
     const hash = n.data.state.data.posHash;
     const previousNode = transpositionMap.get(hash);
     const isRootNode = n.inEdge == null;
     if (!isRootNode && previousNode != null) {
-      const percentReduction = (previousNode.data.state.costToCome - n.data.state.costToCome) / previousNode.data.state.costToCome;
+      const percentReduction = n.data.scoreMax / previousNode.data.scoreMax;
       // TODO: consider how equal value nodes should be handled
       if (percentReduction < percentBetterNode) {
         // TODO: don't expose this deep knowlege here
-        const edgeId = n.inEdge.id;
-        const index = n.inEdge.source.outEdges.findIndex((e: TreeEdge) => e.id === edgeId);
         worseScoreNodeFound += 1;
-        if (index !== -1) {
-          // const edgeIdsBefore = n.inEdge.source.outEdges.map((e: TreeEdge) => e.id);
-          n.inEdge.source.outEdges.splice(index, 1);
-          // const edgeIdsAfter = n.inEdge.source.outEdges.map((e: TreeEdge) => e.id);
-          // console.log({edgeId, edgeIdsBefore, edgeIdsAfter});
-          n.data.state.terminal = true;
-          return 0;
+        if (n.outEdges.length === 0) {
+          const edgeId = n.inEdge.id;
+          const index = n.inEdge.source.outEdges.findIndex((e: TreeEdge) => e.id === edgeId);
+          if (index !== -1) {
+            // const edgeIdsBefore = n.inEdge.source.outEdges.map((e: TreeEdge) => e.id);
+            n.inEdge.source.outEdges.splice(index, 1);
+            // const edgeIdsAfter = n.inEdge.source.outEdges.map((e: TreeEdge) => e.id);
+            // console.log({edgeId, edgeIdsBefore, edgeIdsAfter});
+            // n.data.state.terminal = true;
+            // return 0;
+          }
         }
       }
     }
@@ -120,34 +165,39 @@ export function* itterativeMCTS(
     const previousNode = transpositionMap.get(hash);
     if (previousNode != null) {
       previousNodeCount += 1;
-      const percentReduction = (previousNode.data.state.costToCome - n.data.state.costToCome) / previousNode.data.state.costToCome;
-      if (percentReduction > percentBetterNode) {
+      const percentReduction = n.data.scoreMax / previousNode.data.scoreMax;
+      if (percentReduction > 1.0) {
         betterScoreNodeFound += 1;
         betterPathFound.push({
-          previousCost: previousNode.data.state.costToCome,
-          newCost: n.data.state.costToCome,
+          previousCost: previousNode.data.scoreMax,
+          newCost: n.data.scoreMax,
           percentReduction,
         });
         transpositionMap.set(hash, n);
+        if (previousNode.outEdges.length === 0) {
+          const edgeId = previousNode.inEdge.id;
+          const index = previousNode.inEdge.source.outEdges.findIndex((e: TreeEdge) => e.id === edgeId);
+          previousNode.inEdge.source.outEdges.splice(index, 1);
+        }
         // TODO: what if this node has children that have good scores?
         // Right now it is being marked termainl and therfore may result in incorrect results.
         // previousNode.data.state.terminal = true;
-        backpropogateReward(previousNode, 0);
+        // backpropogateReward(previousNode, 0);
       }
     } else {
       newNodeCount += 1;
       transpositionMap.set(hash, n);
     }
   }
-  const worldFrequency = new Map<string, number>();
-  const countWorld = (n: TreeNode) => {
-    const hash = n.data.state.data.worldHash;
-    if (worldFrequency.has(hash)) {
-      worldFrequency.set(hash, worldFrequency.get(hash) + 1);
-    } else {
-      worldFrequency.set(hash, 1);
-    }
-  }
+  // const worldFrequency = new Map<string, number>();
+  // const countWorld = (n: TreeNode) => {
+  //   const hash = n.data.state.data.worldHash;
+  //   if (worldFrequency.has(hash)) {
+  //     worldFrequency.set(hash, worldFrequency.get(hash) + 1);
+  //   } else {
+  //     worldFrequency.set(hash, 1);
+  //   }
+  // }
   let goalReachedMinCost: number;
   let goalReachedMinCostOverTime = [];
   const recordGoalReachedMinCostNodes = (node: TreeNode, deltaTime: number) => {
@@ -165,19 +215,125 @@ export function* itterativeMCTS(
       // state: node.data.state,
     });
   }
+  const rewardsDuringTimestep = new Map<number, Array<number>>();
+  const recordRewardDuringTimestep = (reward: number, timestep: number) => {
+    if (rewardsDuringTimestep.has(timestep)) {
+      rewardsDuringTimestep.get(timestep).push(reward);
+    } else {
+      rewardsDuringTimestep.set(timestep, [reward]);
+    }
+  }
+  const logDetails = () => {
+    // let nextNode = rootNode;
+    // for (; ;) {
+    //   console.dir(nextNode.data, {depth: null});
+    //   nextNode = bestChild(nextNode, 1.0, 0);
+    //   if (nextNode == null) {
+    //     break;
+    //   }
+    // }
+    // console.dir(worldFrequency, {depth: null});
+    const averageRewardByTimestep = new Map();
+    for (const [timestep, rewards] of rewardsDuringTimestep.entries()) {
+      const averageReward = rewards.reduce((a, b) => a + b) / rewards.length;
+      averageRewardByTimestep.set(timestep, averageReward);
+    }
+    console.dir(averageRewardByTimestep, {depthMap: null});
+    console.dir(depthMap, {depth: null});
+    console.dir(goalReachedMinCostOverTime, {depth: null});
+    // console.dir(betterPathFound, {depth: null});
+    console.log({previousNodeCount, newNodeCount, betterScoreNodeFound, worseScoreNodeFound, totalNodes: previousNodeCount + newNodeCount});
+  }
 
+  const pruneRootNode = () => {
+    // TODO: don't delete the newRootNode down...
+    const deleteData = (node: TreeNode | undefined) => {
+      if (node == null) return;
+      const posHash = node.data.state.data.posHash;
+      const potentialNode = transpositionMap.get(posHash);
+      if (potentialNode?.data.id === node.data.id) {
+        transpositionMap.delete(posHash);
+      }
+      node.outEdges.forEach((e) => deleteData(e.target));
+    }
+    const oldRootNode = rootNode;
+    const newRootNode = bestChild(oldRootNode, 1.0, 0);
+    console.log({oldRootNodeId: oldRootNode.data.id, newRootNodeId: newRootNode?.data.id});
+    if (newRootNode == null) {
+      console.log("Can't prune root node without children.");
+      console.dir(oldRootNode, {depth: null});
+    } else {
+      oldRootNode.outEdges = oldRootNode.outEdges.filter((e) => e.target.data.id !== newRootNode.data.id);
+      newRootNode.inEdge.target = undefined;
+      newRootNode.inEdge = undefined;
+      rootNode = newRootNode;
+      deleteData(oldRootNode);
+      console.log({transpositionMapSize: transpositionMap.size});
+    }
+  }
+
+  let startTime = performance.now();
+  const recordCalculationTime = () => {
+    totalCalculationTime = totalCalculationTime + performance.now() - startTime;
+  }
+  const resetComputationBudget = () => {
+    startTime = performance.now();
+  };
+  const computationBudgetExcceded = (): boolean => {
+    return performance.now() - startTime >= timeLimitMillis;
+  }
+
+  let timestep = 0;
   for (; ;) {
-    const startTime = performance.now();
-    while (performance.now() - startTime < timeLimitMillis) {
+    // let startTime = performance.now();
+    // while (performance.now() - startTime < timeLimitMillis) {
+    resetComputationBudget();
+    while (!computationBudgetExcceded()) {
       const [node, depth] = treePolicy(rootNode, actionGenerator, actionGeneratorExpandedMap, actionGeneratorCompletedSet, transpositionMap, mixmaxFactor, explorationFactor);
       // countWorld(node);
-      const reward = simulateDefaultPolicy(originalRootNode.data.state, node.data.state);
-      const clampedReward = clampReward(node, reward);
+      if (duplicateNodeFound(node)) {
+        continue;
+      }
+      const simulateDefaultPolicy = simulateDefaultPolicyGenerator(originalRootNode.data.state, node.data.state);
+      let reward = 0;
+      // totalCalculationTime = totalCalculationTime + performance.now() - startTime;
+      // let innerStartTime = performance.now();
+      for (const tempReward of simulateDefaultPolicy) {
+        // console.log({tempReward});
+        if (tempReward != null) {
+          reward = tempReward;
+        }
+        if (computationBudgetExcceded()) {
+          const response: MCTSResponse = {
+            rootNode,
+            bestPath: bestPath(rootNode),
+          };
+          // totalCalculationTime = totalCalculationTime + performance.now() - innerStartTime;
+          recordCalculationTime();
+          controlInput = yield response;
+          resetComputationBudget();
+          timestep++;
+          if (controlInput.logDetails) {
+            logDetails();
+          }
+          if (controlInput.pruneRootNode) {
+            pruneRootNode();
+          }
+          // innerStartTime = performance.now();
+          // startTime = performance.now();
+        }
+      }
+      // totalCalculationTime = totalCalculationTime + performance.now() - innerStartTime;
+      // let afterTime = performance.now();
+      // const clampedReward = clampReward(node, reward);
+      const clampedReward = reward;
       backpropogateReward(node, clampedReward);
-      recordGoalReachedMinCostNodes(node, totalCalculationTime + performance.now() - startTime);
-      pruneWorseScoreNode(node);
+      // recordGoalReachedMinCostNodes(node, totalCalculationTime + performance.now() - afterTime);
+      recordRewardDuringTimestep(clampedReward, timestep);
+      // pruneWorseScoreNode(node);
       // console.dir(graph.json(), {depth: null});
       depthMap.set(depth, depthMap.has(depth) ? depthMap.get(depth) + 1 : 1);
+      // totalCalculationTime = totalCalculationTime + performance.now() - afterTime;
     }
     // const worldFrequency = new Map<string, number>();
     // const positionFrequency = new Map<string, number>();
@@ -199,7 +355,6 @@ export function* itterativeMCTS(
     // });
     // // console.dir(positionFrequency, {depth: null});
 
-    totalCalculationTime = totalCalculationTime + performance.now() - startTime;
     // const nodeCount = graph.nodes().size();
     // console.log({nodeCount, nodeCountDelta: nodeCount - previousNodeCount, edgeCount: graph.edges().size()});
     // previousNodeCount = nodeCount;
@@ -219,98 +374,69 @@ export function* itterativeMCTS(
       bestPath: bestPath(rootNode),
     };
     // TODO: find a better way to return the full result set.
+    recordCalculationTime();
     controlInput = yield response;
+    resetComputationBudget();
+    timestep++;
 
     // TODO: remove this logging or find a better way to enable it.
     if (controlInput.logDetails) {
-      // let nextNode = rootNode;
-      // for (; ;) {
-      //   console.dir(nextNode.data, {depth: null});
-      //   nextNode = bestChild(nextNode, 1.0, 0);
-      //   if (nextNode == null) {
-      //     break;
-      //   }
-      // }
-      // console.dir(worldFrequency, {depth: null});
-      console.dir(depthMap, {depth: null});
-      console.dir(goalReachedMinCostOverTime, {depth: null});
-      // console.dir(betterPathFound, {depth: null});
-      console.log({previousNodeCount, newNodeCount, betterScoreNodeFound, worseScoreNodeFound, totalNodes: previousNodeCount + newNodeCount});
+      logDetails();
+      recordCalculationTime();
+      controlInput = yield response;
+      resetComputationBudget();
     }
 
     if (controlInput.pruneRootNode) {
-      // TODO: don't delete the newRootNode down...
-      const deleteData = (node: TreeNode | undefined) => {
-        if (node == null) return;
-        const posHash = node.data.state.data.posHash;
-        const potentialNode = transpositionMap.get(posHash);
-        if (potentialNode?.data.id === node.data.id) {
-          transpositionMap.delete(posHash);
-        }
-        node.outEdges.forEach((e) => deleteData(e.target));
-      }
-      const oldRootNode = rootNode;
-      const newRootNode = bestChild(oldRootNode, 1.0, 0);
-      console.log({oldRootNodeId: oldRootNode.data.id, newRootNodeId: newRootNode?.data.id});
-      if (newRootNode == null) {
-        console.log("Can't prune root node without children.");
-        console.dir(oldRootNode, {depth: null});
-      } else {
-        oldRootNode.outEdges = oldRootNode.outEdges.filter((e) => e.target.data.id !== newRootNode.data.id);
-        newRootNode.inEdge.target = undefined;
-        newRootNode.inEdge = undefined;
-        rootNode = newRootNode;
-        deleteData(oldRootNode);
-        console.log({transpositionMapSize: transpositionMap.size});
-      }
+      pruneRootNode();
     }
   }
 }
 
-export const monteCarloTreeSearch = (
-  initialState: State,
-  actionGenerator: ActionGenerator,
-  simulateDefaultPolicy: SimulateDefaultPolicy,
-  timeLimitMillis: number,
-  mixmaxFactor: number,
-  explorationFactor: number): Action => {
-  if (explorationFactor <= 0) {
-    throw new Error('explorationFactor must be greater than zero');
-  }
-  const startTime = performance.now();
-  const rootNode: TreeNode = {
-    data: {
-      id: 'root_node',
-      state: initialState,
-      visits: 0,
-      scoreCumulative: 0,
-      scoreMax: 0,
-    },
-    inEdge: undefined,
-    outEdges: []
-  };
-  const actionGeneratorExpandedMap = new Map<string, ActionResultGenerator>();
-  const actionGeneratorCompletedSet = new Set<string>();
-  const transpositionMap = new Map<string, TreeNode>();
-
-  while (performance.now() - startTime < timeLimitMillis) {
-    const [node, depth] = treePolicy(rootNode, actionGenerator, actionGeneratorExpandedMap, actionGeneratorCompletedSet, transpositionMap, mixmaxFactor, explorationFactor);
-    const reward = simulateDefaultPolicy(rootNode.data.state, node.data.state);
-    backpropogateReward(node, reward);
-    // console.dir(graph.json(), {depth: null});
-  }
-
-  let nextNode = rootNode;
-  for (; ;) {
-    // console.dir(nextNode, {depth: null});
-    nextNode = bestChild(nextNode, 1.0, 0);
-    if (nextNode == null) {
-      break;
-    }
-  }
-  // console.log({nodeCount: graph.nodes().size(), edgeCount: graph.edges().size()});
-  return bestAction(rootNode, mixmaxFactor);
-}
+// export const monteCarloTreeSearch = (
+//   initialState: State,
+//   actionGenerator: ActionGenerator,
+//   simulateDefaultPolicy: SimulateDefaultPolicy,
+//   timeLimitMillis: number,
+//   mixmaxFactor: number,
+//   explorationFactor: number): Action => {
+//   if (explorationFactor <= 0) {
+//     throw new Error('explorationFactor must be greater than zero');
+//   }
+//   const startTime = performance.now();
+//   const rootNode: TreeNode = {
+//     data: {
+//       id: 'root_node',
+//       state: initialState,
+//       visits: 0,
+//       scoreCumulative: 0,
+//       scoreMax: 0,
+//     },
+//     inEdge: undefined,
+//     outEdges: []
+//   };
+//   const actionGeneratorExpandedMap = new Map<string, ActionResultGenerator>();
+//   const actionGeneratorCompletedSet = new Set<string>();
+//   const transpositionMap = new Map<string, TreeNode>();
+// 
+//   while (performance.now() - startTime < timeLimitMillis) {
+//     const [node, depth] = treePolicy(rootNode, actionGenerator, actionGeneratorExpandedMap, actionGeneratorCompletedSet, transpositionMap, mixmaxFactor, explorationFactor);
+//     const reward = simulateDefaultPolicy(rootNode.data.state, node.data.state);
+//     backpropogateReward(node, reward);
+//     // console.dir(graph.json(), {depth: null});
+//   }
+// 
+//   let nextNode = rootNode;
+//   for (; ;) {
+//     // console.dir(nextNode, {depth: null});
+//     nextNode = bestChild(nextNode, 1.0, 0);
+//     if (nextNode == null) {
+//       break;
+//     }
+//   }
+//   // console.log({nodeCount: graph.nodes().size(), edgeCount: graph.edges().size()});
+//   return bestAction(rootNode, mixmaxFactor);
+// }
 
 const treePolicy = (rootNode: TreeNode,
   actionGenerator: ActionGenerator,
@@ -386,7 +512,7 @@ const expandNode = (parentNode: TreeNode, actionResult: ActionResult): TreeNode 
   return node;
 }
 
-const bestChild = (node: TreeNode, mixmaxFactor: number, explorationFactor: number): TreeNode | undefined => {
+export const bestChild = (node: TreeNode, mixmaxFactor: number, explorationFactor: number): TreeNode | undefined => {
   const nodeVisits = node.data.visits;
   const logNodeVisits = 2 * Math.log(nodeVisits);
   let maxNode: TreeNode;
@@ -415,12 +541,14 @@ const backpropogateReward = (node: TreeNode, reward: number) => {
       cursorNode.data.scoreCumulative = scoreCumulative;
       let maxBackprop: number;
       if (cursorNode.outEdges.length === 0) {
-        maxBackprop = scoreCumulative / visitCount;
+        maxBackprop = reward;
+        //  maxBackprop = scoreCumulative / visitCount;
       } else {
         maxBackprop = cursorNode.outEdges.reduce((max: number, e: TreeEdge) => {
           return Math.max(max, e.target.data.scoreMax);
         }, 0);
       }
+      // cursorNode.data.scoreMax = Math.max(maxBackprop, cursorNode.data.scoreMax);
       cursorNode.data.scoreMax = maxBackprop;
       previousNode = cursorNode;
       cursorNode = cursorNode.inEdge?.source;

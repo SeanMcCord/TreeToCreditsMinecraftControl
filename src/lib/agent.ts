@@ -9,7 +9,7 @@ import {transformYawToMouseSpace, transformPitchToMouseSpace, mouseMoveWithinNoA
 import {performance} from 'perf_hooks';
 import {testPath} from './trailblazer/high_level_planner.js';
 import {mineflayer as mineflayerViewer} from 'prismarine-viewer';
-import pathViewer from './trailblazer/path_viewer.js';
+import {pathViewer, posViewer} from './trailblazer/path_viewer.js';
 import pathfinderLib from 'mineflayer-pathfinder';
 const {goals, pathfinder} = pathfinderLib;
 import {TreeNode} from './trailblazer/monte_carlo_tree_search.js';
@@ -333,14 +333,23 @@ class Agent {
 
   goodValueTestPath() {
     // TODO: wrap up these config values to make this more clear.
-    this.testPath(40, 1.0, 0.002, 0.20, 10, 0.1, 0.9, 0.3, {x: 60, y: 10, z: 70});
+    this.testPath(40, 1.0, 0.00000000001, 0.0, 200, 0.0, 0.0, 0.0, 0.3, {x: 100, y: 10, z: 40});
   }
 
-  testPath(timeBudgetMilis: number = 200, mixmaxFactor: number = 0.125, explorationFactor: number = 1 / Math.sqrt(2), percentBetterNode: number = 0.20, itterations: number = 20, efficiencyWeight: number = 0.3, distanceWeight: number = 1.0, biasWeight: number = 0.3, goalPos = {x: 20, y: 64, z: 20}) {
+  testPath(timeBudgetMilis: number = 200, mixmaxFactor: number = 0.125, explorationFactor: number = 1 / Math.sqrt(2), percentBetterNode: number = 0.20, itterations: number = 20, efficiencyWeight: number = 0.3, distanceWeight: number = 1.0, biasWeight: number = 0.3, goalBias: number = 0.2, goalPos = {x: 20, y: 64, z: 20}) {
     const renderRootNode = (node: TreeNode) => {
       pathViewer(this.mineflayerBot.viewer, node);
     }
-    testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, mixmaxFactor, explorationFactor, percentBetterNode, itterations, efficiencyWeight, distanceWeight, biasWeight, goalPos, renderRootNode);
+    const renderPosArray = (positions: Array<any>, label: string, color: any) => {
+      posViewer(this.mineflayerBot.viewer, positions, label, color);
+    }
+    // const renderRootNode = null;
+    const result = testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, mixmaxFactor, explorationFactor, percentBetterNode, itterations, efficiencyWeight, distanceWeight, biasWeight, goalBias, goalPos, renderRootNode, renderPosArray);
+    // result.then((r) => {
+    //   for (const pathSegment of r.bestPath) {
+    //     console.dir(pathSegment, {depth: null})
+    //   }
+    // });
   }
 
   getPath(goalPos = {x: 20, y: 64, z: 20}, timeout: number = 200) {

@@ -1,6 +1,6 @@
 import {goalReached} from "../rrt_star";
 
-const neutralPoint = 0.2;
+const neutralPoint = 0.0;
 
 export const computeEfficiencyReward = (distanceTraveled: number, costToCome: number, efficiencyWeight: number): number => {
   if (costToCome == 0) {
@@ -57,20 +57,22 @@ export const computeCompositeReward = (startDistance: number, currentDistance: n
 }
 
 export const computeScalarizedCompositeReward = (startDistance: number, currentDistance: number, distanceTraveled: number, costToCome: number, goalReached: boolean, distanceWeight: number, efficiencyWeight: number, biasWeight: number): number => {
-  const efficiencyReward = computeEfficiencyReward(distanceTraveled, costToCome, 1.0);
-  const distanceReward = computeDistanceReward(startDistance, currentDistance, 1.0);
+  // const efficiencyReward = computeEfficiencyReward(distanceTraveled, costToCome, 1.0);
+  // const distanceReward = computeDistanceReward(startDistance, currentDistance, 1.0);
   // const distanceReward = computeSimpleDistanceReward(currentDistance);
   // const heuristicReward = computeHeuristicReward(currentDistance, costToCome);
   // const bias = heuristicReward * efficiencyWeight;
-  const bias = efficiencyReward * efficiencyWeight + distanceReward * distanceWeight;
+  // const bias = efficiencyReward * efficiencyWeight + distanceReward * distanceWeight;
+  // const bias = 0.0;
 
-  if (biasWeight === -1) {
-    return Math.min(Math.max(bias, 0), 1);
-  }
+  // if (biasWeight === -1) {
+  //   return Math.min(Math.max(bias, 0), 1);
+  // }
   // To ensure all completed paths have a higher score than promising incomplete paths
   // the bias is set to the max of 1.
-  const biasCapped = goalReached ? 1 : bias;
+  // const biasCapped = goalReached ? 1 : bias;
   const goalReward = computeGoalReward(goalReached, costToCome);
-  const reward = biasWeight * biasCapped + (1 - biasWeight) * goalReward;
+  // const reward = biasWeight * biasCapped + (1 - biasWeight) * goalReward;
+  const reward = goalReward;
   return Math.min(Math.max(reward, 0), 1);
 }

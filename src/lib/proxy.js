@@ -67,7 +67,24 @@ playerServer.on('login', (playerClient) => {
     const lastLook = {pitch: 0, yaw: 0}
     const lastWindow = {windowId: 0, actionId: 0}
 
+    playerServer.on('error', (e) => {
+      console.log({playerServer: e});
+    });
+    playerClient.on('error', (e) => {
+      console.log({playerClient: e});
+    });
+    botServer.on('error', (e) => {
+      console.log({botServer: e});
+    });
+    botClient.on('error', (e) => {
+      console.log({botClient: e});
+    });
+    server.on('error', (e) => {
+      console.log({server: e});
+    });
+
     playerClient.on('packet', (data, meta) => {
+      // console.log('P_CLIENT => SERVER:', meta.name)
       if (meta.name !== 'keep_alive') {
         // console.log('P_CLIENT => SERVER:', meta.name)
         server.write(meta.name, data)
@@ -135,6 +152,9 @@ playerServer.on('login', (playerClient) => {
     port: botServerPort,
     version
   })
+  bot.on('error', (e) => {
+    console.log({bot: e});
+  });
   console.log('Created Mineflayer instance')
   const context = repl.start('> ').context;
   context.bot = bot;

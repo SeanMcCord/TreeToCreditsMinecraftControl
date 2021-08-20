@@ -1,7 +1,7 @@
-import {TreeNode} from './monte_carlo_tree_search';
+import {TreeNode, bestChild} from './monte_carlo_tree_search.js';
 import vec3 from 'vec3';
 
-const pathViewer = (viewer, rootNode: TreeNode) => {
+export const pathViewer = (viewer, rootNode: TreeNode) => {
   const tempColorMap = new Map<number, any>([
     [0, 0x003f5c],
     [1, 0x58508d],
@@ -14,14 +14,24 @@ const pathViewer = (viewer, rootNode: TreeNode) => {
   const groupCount = 5;
   // const uniqueResult = uniquePositionFrequency(rootNode);
   // const uniqueResult = uniquePositionMinCost(rootNode);
-  const uniqueResult = uniquePositionMaxScore(rootNode);
+  // const computeMaxScore = (node: TreeNode) => node.data.scoreMax;
+  // const computeAverageScore = (node: TreeNode) => node.data.scoreCumulative / node.data.visits;
+  // const uniqueResult = uniquePositionMaxScore(rootNode, computeAverageScore);
+  const uniqueResult = uniquePositionBestPath(rootNode);
+  // console.log({uniqueResult});
   const valueGroups = singleLinearValueGroup(uniqueResult, groupCount);
+  // console.log({valueGroups});
   valueGroups.forEach((group) => {
     const color = tempColorMap.get(group.group);
     const positions = group.members.map((posHash) => uniqueResult.positions.get(posHash));
     viewer.drawPoints(`group-${group.group}`, positions, color, 16);
 
   });
+}
+
+export const posViewer = (viewer, positions: Array<any>, label: string, color: any) => {
+  const vecPositions = positions.map((pos) => vec3(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5));
+  viewer.drawPoints(`direct-group-${label}`, vecPositions, color, 16);
 }
 
 const uniquePositions = (rootNode: TreeNode): Array<any> => {
@@ -84,21 +94,42 @@ const uniquePositionMinCost = (rootNode: TreeNode): UniqueResults<any> => {
   };
 }
 
-const uniquePositionMaxScore = (rootNode: TreeNode): UniqueResults<any> => {
+type Score = (node: TreeNode) => number;
+
+const uniquePositionMaxScore = (rootNode: TreeNode, computeScore: Score): UniqueResults<any> => {
   const positionMap = new Map<string, any>();
   const positionMaxScore = new Map<string, number>();
   const bfs = bfsGenerator(rootNode);
   for (const node of bfs) {
     const pos = node.data.state.data;
+    const score = computeScore(node);
     if (!positionMaxScore.has(pos.posHash)) {
-      positionMaxScore.set(pos.posHash, node.data.scoreMax);
+      positionMaxScore.set(pos.posHash, score);
       positionMap.set(pos.posHash, vec3(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5));
     } else {
       const priorMaxScore = positionMaxScore.get(pos.posHash);
-      if (priorMaxScore < node.data.scoreMax) {
-        positionMaxScore.set(pos.posHash, node.data.scoreMax);
+      if (priorMaxScore < score) {
+        positionMaxScore.set(pos.posHash, score);
       }
     }
+  }
+  return {
+    positions: positionMap,
+    value: positionMaxScore,
+  };
+}
+
+const uniquePositionBestPath = (rootNode: TreeNode): UniqueResults<any> => {
+  const positionMap = new Map<string, any>();
+  const positionMaxScore = new Map<string, number>();
+  let cursorNode = rootNode;
+  for (; ;) {
+    if (cursorNode == null) break;
+    const score = cursorNode.data.scoreMax;
+    const pos = cursorNode.data.state.data;
+    positionMaxScore.set(pos.posHash, score);
+    positionMap.set(pos.posHash, vec3(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5));
+    cursorNode = bestChild(cursorNode, 1.0, 0.0);
   }
   return {
     positions: positionMap,
@@ -131,6 +162,9 @@ const singleLinearValueGroup = (uniqueResult: UniqueResults<any>, groups: number
 
   uniqueResult.value.forEach((value, pos) => {
     const groupIndex = value === maxValue ? groups - 1 : Math.floor((value - minValue) / partitionLength);
+    if (isNaN(groupIndex)) {
+      return;
+    }
     try {
       partitions[groupIndex].members.push(pos);
     } catch (e) {
@@ -152,5 +186,3 @@ function* bfsGenerator(rootNode: TreeNode) {
     yield node;
   }
 }
-
-export default pathViewer

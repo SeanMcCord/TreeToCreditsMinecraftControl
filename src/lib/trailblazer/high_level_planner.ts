@@ -1,19 +1,24 @@
-import {itterativeMCTS, monteCarloTreeSearch, State, ActionResultGenerator, SimulateDefaultPolicy, ActionResult, TreeNode, MCTSResponse} from './monte_carlo_tree_search.js';
+import {itterativeMCTS, State, ActionResultGenerator, SimulateDefaultPolicyRewardGenerator, ActionResult, TreeNode, MCTSResponse} from './monte_carlo_tree_search.js';
 import pathfinder from 'mineflayer-pathfinder';
 import {computeScalarizedCompositeReward} from './reward.js';
 const {Move, Movements, goals} = pathfinder;
+import {performance} from 'perf_hooks';
 
 // Ms Pac Man notes
 //
 // * They set a threshold for the number of times child nodes need to  be tested before moving to UCT. They set it to 15.
 
-export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor: number, explorationFactor: number, percentBetterNode: number, itterationsMCTS: number, efficiencyWeight: number, distanceWeight: number, biasWeight: number, goalPos, render: any): Promise<MCTSResponse> => {
+export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor: number, explorationFactor: number, percentBetterNode: number, itterationsMCTS: number, efficiencyWeight: number, distanceWeight: number, biasWeight: number, goalBias: number, goalPos, renderTreeNode: any, renderPosArray: any): Promise<MCTSResponse> => {
   console.log({
+    executionTimeMillis,
     mixmaxFactor,
     explorationFactor,
+    percentBetterNode,
+    itterationsMCTS,
     efficiencyWeight,
     distanceWeight,
     biasWeight,
+    goalBias,
     goalPos,
   });
   if (efficiencyWeight > 1 || efficiencyWeight < 0) {
@@ -31,12 +36,24 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
   const start = new Move(p.x, p.y + (b && dy > 0.001 && bot.entity.onGround && b.type !== 0 ? 1 : 0), p.z, movement.countScaffoldingItems(), 0);
   // TODO: extract and test
   const manhattenDistanceToGoal = (pos): number => {
-    return Math.abs(goalPos.x - pos.x) + Math.abs(goalPos.y - pos.y) + Math.abs(goalPos.z - pos.z);
+    const result = Math.abs(goalPos.x - pos.x) + Math.abs(goalPos.y - pos.y) + Math.abs(goalPos.z - pos.z);
+    // console.log({
+    //   goalPosX: goalPos.x,
+    //   goalPosY: goalPos.y,
+    //   goalPosZ: goalPos.z,
+    //   posX: pos.x,
+    //   posY: pos.y,
+    //   posZ: pos.z,
+    //   result
+    // });
+    return result;
   }
   const goal = new goals.GoalBlock(goalPos.x, goalPos.y, goalPos.z);
+  renderPosArray([goalPos], 'goal', 0x003f5c);
 
   const initialState: State = {data: start, costToCome: start.cost, terminal: false, goalReached: false, distanceTraveled: 0};
-  let goalSimulatedCount = 0;
+  let goalReachedSimulatedCount = 0;
+  let simulatedCount = 0;
   const rewardStats = {count: 0, max: 0, min: 1};
   const updateRewardStats = (reward: number) => {
     rewardStats.count++;
@@ -49,6 +66,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
   };
 
   let invalidMoves = 0;
+  let validMoves = 0;
   function* actionGenerator(state: State): ActionResultGenerator {
     const move = state.data;
     const neighborGenerator = movement.getRandomNeighborsGenerator(move);
@@ -62,6 +80,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
         invalidMoves++;
         continue;
       }
+      validMoves++;
       const distance = move.distanceTo(neighbor);
       const goalReached = goal.isEnd(neighbor);
       const result: ActionResult = {
@@ -86,23 +105,50 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
   // TODO: Consider the normalization strategy used for the reward.
   //    Ms Pac Man use variable depth paths and normalizes by that.
   // ##################
-  const simulateCount = 500;
-  const simulateDefaultPolicy: SimulateDefaultPolicy = (startState: State, endState: State): number => {
+  const maxItterations = 5000;
+  let previousSimulationStack = [];
+  const getPositionsFromSimulationStack = () => {
+    return previousSimulationStack.map((element) => element.move);
+  }
+  const simulationFailureReasons = new Map<string, number>([
+    ['max_timestep', 0],
+    ['no_valid_path', 0],
+  ]);
+  function* simulateDefaultPolicy(startState: State, endState: State): Generator<number, number, undefined> {
+    // console.log(`####################### new sim starting at ${endState.data}`);
+    simulatedCount++;
     // Pick 10 random moves sequentially then compute the proximity to the goal along with the travel cost.
     const startMove = startState.data;
     const move = endState.data;
     const moveStack = [{
       move: endState.data,
-      distance: endState.distanceTraveled,
+      distanceTraveled: endState.distanceTraveled,
+      distanceToGoal: manhattenDistanceToGoal(endState.data),
       nextMoveGenerator: undefined,
     }];
+    let popCount = 0;
     let distanceTraveled = endState.distanceTraveled;
     let goalReached = false;
-    for (let i = 0; i < simulateCount; i++) {
-      const lastMove = moveStack?.[moveStack.length - 1];
+    let itterationCount = 0;
+    let ensureDistanceProgress = Math.random() > goalBias;
+    while (!goalReached) {
+      itterationCount++;
+      if (itterationCount > maxItterations) {
+        previousSimulationStack = moveStack;
+        simulationFailureReasons.set('max_timestep',
+          simulationFailureReasons.get('max_timestep') + 1
+        );
+        yield 0;
+        return 0;
+      }
+      let lastMove = moveStack?.[moveStack.length - 1];
       if (lastMove == null) {
-        console.log({event: 'move stack empty', i});
-        break;
+        // console.log({event: 'move stack empty', itterationCount});
+        simulationFailureReasons.set('no_valid_path',
+          simulationFailureReasons.get('no_valid_path') + 1
+        );
+        yield 0;
+        return 0;
       }
       if (goal.isEnd(lastMove.move)) {
         goalReached = true;
@@ -112,64 +158,121 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
         lastMove.nextMoveGenerator = movement.getRandomNeighborsGenerator(lastMove.move);
       }
       let validNeighbor;
-      for (const neighbor of lastMove.nextMoveGenerator) {
-        if (!lastMove.move.priorPosHashes.has(neighbor.posHash)) {
-          validNeighbor = neighbor;
-          break;
+      // NOTE: this may result in moves being rejected if there is no valid move towards the goal.
+      // It may be the case that a future move may have 
+      for (; ;) {
+        const neighbor = lastMove.nextMoveGenerator.next();
+        if (neighbor.value == null && !neighbor.done) {
+          console.log({neighbor, lastMove});
         }
+        if (neighbor.value == null) break;
+        if (lastMove.move.priorPosHashes.has(neighbor.value.posHash)) {
+          invalidMoves++;
+        } else {
+          validMoves++;
+          const goalDistanceBias = lastMove.distanceToGoal <= 30 ? Math.max(0.0, (lastMove.distanceToGoal - 20) / 10) : 1.0;
+          if (!ensureDistanceProgress) {
+            validNeighbor = neighbor.value;
+            ensureDistanceProgress = Math.random() > goalBias * goalDistanceBias;
+            break;
+          } else if (manhattenDistanceToGoal(neighbor.value) < lastMove.distanceToGoal) {
+            validNeighbor = neighbor.value;
+            ensureDistanceProgress = Math.random() > goalBias * goalDistanceBias;
+            break;
+          }
+        }
+        if (neighbor.done) break;
       }
       if (validNeighbor == null) {
         // console.log('self intersection terminal node in default policy');
+        popCount++;
+        if (popCount > 10) {
+          const randPop = Math.floor(Math.random() * Math.min(20, moveStack.length));
+          // console.log({randPop});
+          for (let i = 0; i < randPop; i++) {
+            moveStack.pop();
+          }
+        }
         moveStack.pop();
-        continue;
+      } else {
+        moveStack.push({
+          move: validNeighbor,
+          distanceTraveled: lastMove.distanceTraveled + lastMove.move.distanceTo(validNeighbor),
+          distanceToGoal: manhattenDistanceToGoal(validNeighbor),
+          nextMoveGenerator: undefined,
+        });
       }
-      moveStack.push({
-        move: validNeighbor,
-        distance: lastMove.distance + lastMove.move.distanceTo(validNeighbor),
-        nextMoveGenerator: undefined,
-      });
+      // lastMove = moveStack?.[moveStack.length - 1];
+      // if (lastMove != null) {
+      //   const goalDistance = manhattenDistanceToGoal(lastMove.move);
+      //   console.log({posX: lastMove.move.x, posY: lastMove.move.y, posZ: lastMove.move.z});
+      //   console.log({itterationCount, moveCount: moveStack.length, goalDistance, ensureDistanceProgress, popCount});
+      // }
+      yield;
     }
     const lastMove = moveStack?.[moveStack.length - 1];
     if (lastMove == null) {
       console.log('move stack empty');
+      yield 0;
       return 0;
     }
     // const startDistance = goal.heuristic(startMove);
     // const currentDistance = goal.heuristic(endMove);
-    distanceTraveled = lastMove.distance;
+    distanceTraveled = lastMove.distanceTraveled;
     const startDistance = manhattenDistanceToGoal(startMove);
     const currentDistance = manhattenDistanceToGoal(lastMove.move);
     const costToCome = lastMove.move.costToCome;
     if (goalReached) {
       // Uncomment to enable scaling of via the growthFactor
-      // goalSimulatedCount++;
+      goalReachedSimulatedCount++;
     }
     // const growthFactor = efficiencyWeight;
-    // const distanceWeightDiscount = Math.pow(growthFactor, goalSimulatedCount) * distanceWeight;
+    // const distanceWeightDiscount = Math.pow(growthFactor, goalReachedSimulatedCount) * distanceWeight;
     // const distanceWeightCompliment = 1 - distanceWeightDiscount;
 
     // Efficiency metric
     // TODO: think about the result of this calculation on the search. Is this the best way to combine these rewards?
     const reward = computeScalarizedCompositeReward(startDistance, currentDistance, distanceTraveled, costToCome, goalReached, distanceWeight, efficiencyWeight, biasWeight);
-    console.log({reward, startDistance, currentDistance, distanceTraveled, costToCome, goalReached});
-    // console.log(endMove, {depth: null});
-    console.log({
-      startPos: {x: startMove.x, y: startMove.y, z: startMove.z},
-      statePos: {x: move.x, y: move.y, z: move.z},
-      endPos: {x: lastMove?.move.x, y: lastMove?.move.y, z: lastMove?.move.z},
-    });
+    // console.log({reward, startDistance, currentDistance, distanceTraveled, costToCome, goalReached, itterationCount});
+    // console.log(lastMove, {depth: null});
+    // console.log({
+    //   startPos: {x: startMove.x, y: startMove.y, z: startMove.z},
+    //   statePos: {x: move.x, y: move.y, z: move.z},
+    //   endPos: {x: lastMove?.move.x, y: lastMove?.move.y, z: lastMove?.move.z},
+    // });
 
     updateRewardStats(reward);
+    // TODO: fix this. This is dumb, but it works.
+    previousSimulationStack = moveStack;
+    yield reward;
+
     return reward;
   }
   const logReport = () => {
-    console.log({invalidMoves});
-    console.log({goalSimulatedCount});
+    console.log({invalidMoves, validMoves});
+    console.log({goalReachedSimulatedCount, simulatedCount, simulationFailureReasons});
     console.log({rewardStats});
   }
   // const bestAction = monteCarloTreeSearch(initialState, actionGenerator, simulateDefaultPolicy, executionTimeMillis, explorationFactor);
   // console.log(bestAction);
   const iMCTS = itterativeMCTS(initialState, actionGenerator, simulateDefaultPolicy, executionTimeMillis, mixmaxFactor, explorationFactor, percentBetterNode);
+  // const simulateDefault = simulateDefaultPolicy(initialState, initialState);
+  // const getNext = (itterations: number, generator) => {
+  //   console.log({itterations});
+  //   if (itterations <= 0) {
+  //     logReport();
+  //     return;
+  //   }
+  //   const result = generator();
+  //   if (result.done) {
+  //     return result;
+  //   }
+  //   setImmediate(() => getNext(itterations - 1, generator));
+  // }
+  // getNext(itterationsMCTS, () => {
+  //   return simulateDefault.next();
+  // });
+
   const rootNode = new Promise<MCTSResponse>((resolve, reject) => {
     const getNext = (itterations: number, generator) => {
       console.log({itterations});
@@ -179,7 +282,8 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
       }
       const result = generator(itterations === 1);
       if (itterations % 3 === 0 || itterations === 1) {
-        render(result.value.rootNode);
+        renderTreeNode(result.value.rootNode);
+        // renderPosArray(getPositionsFromSimulationStack(), 'rollout', 0xffa600);
       }
       if (itterations === 1) resolve(result.value);
       setImmediate(() => getNext(itterations - 1, generator));
