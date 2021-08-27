@@ -14,10 +14,10 @@ export const pathViewer = (viewer, rootNode: TreeNode) => {
   const groupCount = 5;
   // const uniqueResult = uniquePositionFrequency(rootNode);
   // const uniqueResult = uniquePositionMinCost(rootNode);
-  // const computeMaxScore = (node: TreeNode) => node.data.scoreMax;
+  const computeMaxScore = (node: TreeNode) => node.data.scoreMax;
   // const computeAverageScore = (node: TreeNode) => node.data.scoreCumulative / node.data.visits;
-  // const uniqueResult = uniquePositionMaxScore(rootNode, computeAverageScore);
-  const uniqueResult = uniquePositionBestPath(rootNode);
+  const uniqueResult = uniquePositionMaxScore(rootNode, computeMaxScore);
+  // const uniqueResult = uniquePositionBestPath(rootNode);
   // console.log({uniqueResult});
   const valueGroups = singleLinearValueGroup(uniqueResult, groupCount);
   // console.log({valueGroups});

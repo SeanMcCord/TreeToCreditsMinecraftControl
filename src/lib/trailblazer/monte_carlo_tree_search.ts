@@ -58,7 +58,7 @@ export type MCTSResponse = {
 export type ItterativeMCTSGenerator = Generator<MCTSResponse, undefined, ControlInput>;
 
 // TODO: Spell this correctly
-export function* itterativeMCTS(
+export function* iterativeMCTS(
   initialState: State,
   actionGenerator: ActionGenerator,
   simulateDefaultPolicyGenerator: SimulateDefaultPolicyGenerator,
@@ -223,7 +223,7 @@ export function* itterativeMCTS(
       rewardsDuringTimestep.set(timestep, [reward]);
     }
   }
-  const logDetails = () => {
+  const logDetails = (): void => {
     // let nextNode = rootNode;
     // for (; ;) {
     //   console.dir(nextNode.data, {depth: null});
@@ -233,9 +233,10 @@ export function* itterativeMCTS(
     //   }
     // }
     // console.dir(worldFrequency, {depth: null});
-    const averageRewardByTimestep = new Map();
+    const averageRewardByTimestep = new Map<number, number>();
     for (const [timestep, rewards] of rewardsDuringTimestep.entries()) {
-      const averageReward = rewards.reduce((a, b) => a + b) / rewards.length;
+      const rewardSum = rewards.reduce((a, b) => a + b, 0);
+      const averageReward = rewardSum / rewards.length;
       averageRewardByTimestep.set(timestep, averageReward);
     }
     console.dir(averageRewardByTimestep, {depthMap: null});
@@ -291,9 +292,9 @@ export function* itterativeMCTS(
     while (!computationBudgetExcceded()) {
       const [node, depth] = treePolicy(rootNode, actionGenerator, actionGeneratorExpandedMap, actionGeneratorCompletedSet, transpositionMap, mixmaxFactor, explorationFactor);
       // countWorld(node);
-      if (duplicateNodeFound(node)) {
-        continue;
-      }
+      // if (duplicateNodeFound(node)) {
+      //   continue;
+      // }
       const simulateDefaultPolicy = simulateDefaultPolicyGenerator(originalRootNode.data.state, node.data.state);
       let reward = 0;
       // totalCalculationTime = totalCalculationTime + performance.now() - startTime;
@@ -548,8 +549,8 @@ const backpropogateReward = (node: TreeNode, reward: number) => {
           return Math.max(max, e.target.data.scoreMax);
         }, 0);
       }
-      // cursorNode.data.scoreMax = Math.max(maxBackprop, cursorNode.data.scoreMax);
-      cursorNode.data.scoreMax = maxBackprop;
+      cursorNode.data.scoreMax = Math.max(maxBackprop, cursorNode.data.scoreMax);
+      // cursorNode.data.scoreMax = maxBackprop;
       previousNode = cursorNode;
       cursorNode = cursorNode.inEdge?.source;
     }

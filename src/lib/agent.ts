@@ -38,11 +38,17 @@ class Agent {
     this.mineflayerBot.physicsEnabled = false;
     this.globalControlState = clearedState();
     // TODO: handle yaw updates from the control system and the proxy.
-    this.mineflayerBot.once('spawn', () => {
+    this.mineflayerBot.once('spawn', async () => {
       this.directlySetYaw = this.mineflayerBot.entity.yaw;
       // TODO: find out why we need to move a small ammount first.
       control.moveMouse(10, 0);
       mineflayerViewer(this.mineflayerBot, {port: config.mineflayerViewerPort});
+      // await this.mineflayerBot.waitForChunksToLoad();
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      this.testPath(40, 0.0, 0.0000000000000000000001, 0.0, 400, 0.0, 0.0, 0.0, 0.8, {x: 100, y: 10, z: 40}).then((r) => {
+        mineflayerBot.quit();
+        process.exit();
+      });
     });
     this.mcData = minecraftData(mineflayerBot.version);
     // Use the moves to set the velocity
@@ -336,7 +342,7 @@ class Agent {
     this.testPath(40, 1.0, 0.00000000001, 0.0, 200, 0.0, 0.0, 0.0, 0.3, {x: 100, y: 10, z: 40});
   }
 
-  testPath(timeBudgetMilis: number = 200, mixmaxFactor: number = 0.125, explorationFactor: number = 1 / Math.sqrt(2), percentBetterNode: number = 0.20, itterations: number = 20, efficiencyWeight: number = 0.3, distanceWeight: number = 1.0, biasWeight: number = 0.3, goalBias: number = 0.2, goalPos = {x: 20, y: 64, z: 20}) {
+  testPath(timeBudgetMilis: number = 200, mixmaxFactor: number = 0.125, explorationFactor: number = 1 / Math.sqrt(2), percentBetterNode: number = 0.20, iterations: number = 20, efficiencyWeight: number = 0.3, distanceWeight: number = 1.0, biasWeight: number = 0.3, goalBias: number = 0.2, goalPos = {x: 20, y: 64, z: 20}): Promise<any> {
     const renderRootNode = (node: TreeNode) => {
       pathViewer(this.mineflayerBot.viewer, node);
     }
@@ -344,12 +350,13 @@ class Agent {
       posViewer(this.mineflayerBot.viewer, positions, label, color);
     }
     // const renderRootNode = null;
-    const result = testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, mixmaxFactor, explorationFactor, percentBetterNode, itterations, efficiencyWeight, distanceWeight, biasWeight, goalBias, goalPos, renderRootNode, renderPosArray);
+    const result = testPath(this.mineflayerBot, this.mcData, timeBudgetMilis, mixmaxFactor, explorationFactor, percentBetterNode, iterations, efficiencyWeight, distanceWeight, biasWeight, goalBias, goalPos, renderRootNode, renderPosArray);
     // result.then((r) => {
     //   for (const pathSegment of r.bestPath) {
     //     console.dir(pathSegment, {depth: null})
     //   }
     // });
+    return result;
   }
 
   getPath(goalPos = {x: 20, y: 64, z: 20}, timeout: number = 200) {

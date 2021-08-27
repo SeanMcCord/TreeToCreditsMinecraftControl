@@ -21,11 +21,12 @@ const proxyServerPort = 25564;
 const botServerPort = 25566;
 const mineflayerViewerPort = 3011;
 const states = mc.states
-let host = process.env.HOST
-let port = process.env.PORT | 25565
-let version = process.env.VERSION
-let username = process.env.USERNAME
-let password = process.env.PASSWORD
+const host = process.env.HOST
+const port = process.env.PORT | 25565
+const version = process.env.VERSION
+const username = process.env.USERNAME
+const password = process.env.PASSWORD
+const replEnabled = process.env.REPL
 
 // Server player connects to
 const playerServer = mc.createServer({
@@ -155,9 +156,13 @@ playerServer.on('login', (playerClient) => {
   bot.on('error', (e) => {
     console.log({bot: e});
   });
-  console.log('Created Mineflayer instance')
-  const context = repl.start('> ').context;
-  context.bot = bot;
-  context.controls = controls;
-  context.agent = new Agent(bot, {mineflayerViewerPort});
+  if (replEnabled) {
+    console.log('Created Mineflayer instance')
+    const context = repl.start('> ').context;
+    context.bot = bot;
+    context.controls = controls;
+    context.agent = new Agent(bot, {mineflayerViewerPort});
+  } else {
+    const agent = new Agent(bot, {mineflayerViewerPort});
+  }
 })
