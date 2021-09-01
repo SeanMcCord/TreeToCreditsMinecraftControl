@@ -29,6 +29,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
   }
   const movement = new Movements(bot, mcData);
   movement.allowMutationHistory = true;
+  movement.liquidCost = 2;
 
   const p = bot.entity.position
   const dy = p.y - Math.floor(p.y)
@@ -106,10 +107,10 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
   //    Ms Pac Man use variable depth paths and normalizes by that.
   // ##################
   const maxItterations = 5000;
-  // let previousSimulationStack = [];
-  // const getPositionsFromSimulationStack = () => {
-  //   return previousSimulationStack.map((element) => element.move);
-  // }
+  let previousSimulationStack = [];
+  const getPositionsFromSimulationStack = () => {
+    return previousSimulationStack.map((element) => element.move);
+  }
   const simulationFailureReasons = new Map<string, number>([
     ['max_timestep', 0],
     ['no_valid_path', 0],
@@ -117,9 +118,9 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
   function* simulateDefaultPolicy(startState: State, endState: State): Generator<number, number, undefined> {
     // console.log(`####################### new sim starting at ${endState.data}`);
     simulatedCount = simulatedCount + 1;
-    const fakeResult = Math.random();
-    yield fakeResult;
-    return fakeResult;
+    // const fakeResult = Math.random();
+    // yield fakeResult;
+    // return fakeResult;
     // Pick 10 random moves sequentially then compute the proximity to the goal along with the travel cost.
     const startMove = startState.data;
     const move = endState.data;
@@ -137,7 +138,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
     while (!goalReached) {
       iterationCount = iterationCount + 1;
       if (iterationCount > maxItterations) {
-        // previousSimulationStack = moveStack;
+        previousSimulationStack = moveStack;
         simulationFailureReasons.set('max_timestep',
           simulationFailureReasons.get('max_timestep') + 1
         );
@@ -173,7 +174,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
           invalidMoves = invalidMoves + 1;
         } else {
           validMoves = validMoves + 1;
-          const goalDistanceBias = lastMove.distanceToGoal <= 30 ? Math.max(0.0, (lastMove.distanceToGoal - 20) / 10) : 1.0;
+          const goalDistanceBias = lastMove.distanceToGoal <= 15 ? Math.max(0.0, (lastMove.distanceToGoal - 5) / 10) : 1.0;
           if (!ensureDistanceProgress) {
             validNeighbor = neighbor.value;
             ensureDistanceProgress = Math.random() > goalBias * goalDistanceBias;
@@ -246,7 +247,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
 
     updateRewardStats(reward);
     // TODO: fix this. This is dumb, but it works.
-    // previousSimulationStack = moveStack;
+    previousSimulationStack = moveStack;
     yield reward;
 
     return reward;
@@ -284,7 +285,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
         console.log({iterations});
       }
       if (iterations % 20 === 0 || lastEvaluation) {
-        // renderTreeNode(result.value.rootNode);
+        renderTreeNode(result.value.rootNode);
         // renderPosArray(getPositionsFromSimulationStack(), 'rollout', 0xffa600);
       }
       if (lastEvaluation) {

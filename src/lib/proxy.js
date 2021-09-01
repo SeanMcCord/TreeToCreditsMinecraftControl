@@ -163,6 +163,6 @@ playerServer.on('login', (playerClient) => {
     context.controls = controls;
     context.agent = new Agent(bot, {mineflayerViewerPort});
   } else {
-    const agent = new Agent(bot, {mineflayerViewerPort});
+    new Agent(bot, {mineflayerViewerPort});
   }
 })

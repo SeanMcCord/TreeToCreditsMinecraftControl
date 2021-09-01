@@ -11,7 +11,7 @@ import {testPath} from './trailblazer/high_level_planner.js';
 import {mineflayer as mineflayerViewer} from 'prismarine-viewer';
 import {pathViewer, posViewer} from './trailblazer/path_viewer.js';
 import pathfinderLib from 'mineflayer-pathfinder';
-const {goals, pathfinder} = pathfinderLib;
+const {goals, pathfinder, Movements} = pathfinderLib;
 import {TreeNode} from './trailblazer/monte_carlo_tree_search.js';
 
 // TODO: ensure only inventory operations do not occur while moving via key commands
@@ -44,11 +44,12 @@ class Agent {
       control.moveMouse(10, 0);
       mineflayerViewer(this.mineflayerBot, {port: config.mineflayerViewerPort});
       // await this.mineflayerBot.waitForChunksToLoad();
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      this.testPath(40, 0.0, 0.0000000000000000000001, 0.0, 400, 0.0, 0.0, 0.0, 0.8, {x: 100, y: 10, z: 40}).then((r) => {
-        mineflayerBot.quit();
-        process.exit();
-      });
+      // await new Promise(resolve => setTimeout(resolve, 2000));
+      // this.testPath(40, 0.0, 0.0000000000000000000001, 0.0, 400, 0.0, 0.0, 0.0, 0.8, {x: 100, y: 10, z: 40}).then((r) => {
+      // this.getPath({x: 100, y: 10, z: -40}, 10000).then((r) => {
+      //   mineflayerBot.quit();
+      //   process.exit();
+      // });
     });
     this.mcData = minecraftData(mineflayerBot.version);
     // Use the moves to set the velocity
@@ -359,19 +360,37 @@ class Agent {
     return result;
   }
 
-  getPath(goalPos = {x: 20, y: 64, z: 20}, timeout: number = 200) {
+  getPath(goalPos = {x: 20, y: 64, z: 20}, timeout: number = 200): Promise<any> {
     const goal = new goals.GoalBlock(goalPos.x, goalPos.y, goalPos.z);
-    const movement = this.mineflayerBot.pathfinder.movements;
+    const movement = new Movements(this.mineflayerBot, this.mcData);
 
     const result = this.mineflayerBot.pathfinder.getPathTo(movement, goal, timeout);
-    return this.finishPath(result);
-  }
 
-  async finishPath(priorResult: any) {
-    if (priorResult.status === 'timeout' || priorResult.status === 'success') {
-      return priorResult;
+    const renderPosArray = (positions: Array<any>, label: string, color: any) => {
+      posViewer(this.mineflayerBot.viewer, positions, label, color);
     }
-    return this.finishPath(priorResult.context.compute());
+    const finalResult = new Promise<any>((resolve, reject) => {
+      const getNext = (depth: number, result) => {
+        if (depth % 20 == 0) {
+          console.log({depth, result});
+          console.log({blockCount: movement.testBlockCount, uniquePositions: movement.testBlockMap.size, cacheSize: movement.testBlockCache.size, hits: movement.testCacheHits});
+          renderPosArray(result.path, 'moves', 0xff0aff);
+          const openSetPositions = [];
+          for (const pos of result.context.openNodeMap.values()) {
+            openSetPositions.push(pos.data);
+          }
+          renderPosArray(openSetPositions, 'openSet', 0xff0a00);
+        }
+        if (result.status === 'timeout' || result.status === 'success') {
+          resolve(result);
+          return;
+        }
+        const nextResult = result.context.compute();
+        setImmediate(() => getNext(depth + 1, nextResult));
+      }
+      getNext(0, result);
+    });
+    return finalResult;
   }
 }
 

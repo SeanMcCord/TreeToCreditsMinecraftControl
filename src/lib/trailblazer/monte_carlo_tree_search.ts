@@ -111,7 +111,7 @@ export function* iterativeMCTS(
       }
       const newCount = transpositionCountMap.get(hash) + 1;
       transpositionCountMap.set(hash, newCount);
-      if (newCount <= 3) {
+      if (newCount <= 1) {
         return false;
       }
       if (n.data.state.goalReached) {
@@ -292,9 +292,9 @@ export function* iterativeMCTS(
     while (!computationBudgetExcceded()) {
       const [node, depth] = treePolicy(rootNode, actionGenerator, actionGeneratorExpandedMap, actionGeneratorCompletedSet, transpositionMap, mixmaxFactor, explorationFactor);
       // countWorld(node);
-      // if (duplicateNodeFound(node)) {
-      //   continue;
-      // }
+      if (duplicateNodeFound(node)) {
+        continue;
+      }
       const simulateDefaultPolicy = simulateDefaultPolicyGenerator(originalRootNode.data.state, node.data.state);
       let reward = 0;
       // totalCalculationTime = totalCalculationTime + performance.now() - startTime;
