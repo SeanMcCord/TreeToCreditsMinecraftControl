@@ -1,5 +1,6 @@
 import control, {executeState, clearedState} from './gui_direct_control.js';
 
+// TODO: encapsulate the knowledge of the ui positions
 const respawnButton = {x: Math.floor(1920 / 2), y: 440};
 
 export const respawn = async () => {
