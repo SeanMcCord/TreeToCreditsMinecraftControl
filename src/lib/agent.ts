@@ -6,6 +6,7 @@ import vec3 from 'vec3';
 import {CompositeControl, ControlState, randomValidCompositeControl} from './sample_control.js';
 import control, {clearedState, cloneState, stateDiff, executeState, CompositeKeyStateMap} from './gui_direct_control.js';
 import {transformYawToMouseSpace, transformPitchToMouseSpace, mouseMoveWithinNoActionRegion} from './gui_mouse_transforms.js';
+import {respawn} from './gui_respawn.js';
 import {performance} from 'perf_hooks';
 import {testPath} from './trailblazer/high_level_planner.js';
 import {mineflayer as mineflayerViewer} from 'prismarine-viewer';
@@ -51,6 +52,7 @@ class Agent {
       //   process.exit();
       // });
     });
+    this.mineflayerBot.on('death', respawn);
     this.mcData = minecraftData(mineflayerBot.version);
     // Use the moves to set the velocity
     this.mineflayerBot.on('move', (data) => {

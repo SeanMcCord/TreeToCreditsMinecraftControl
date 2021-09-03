@@ -9,6 +9,7 @@ export const connectToServer = async () => {
   await executeState(control.leftClickDown(clearedState()));
   await executeState(clearedState());
 
+  // TODO: might break this out
   await control.moveMouse(topServer.x, topServer.y);
   await executeState(control.leftClickDown(clearedState()));
   await executeState(clearedState());
