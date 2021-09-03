@@ -41,7 +41,7 @@ class Agent {
     this.mineflayerBot.once('spawn', async () => {
       this.directlySetYaw = this.mineflayerBot.entity.yaw;
       // TODO: find out why we need to move a small ammount first.
-      control.moveMouse(10, 0);
+      control.moveMouseRelative(10, 0);
       mineflayerViewer(this.mineflayerBot, {port: config.mineflayerViewerPort});
       // await this.mineflayerBot.waitForChunksToLoad();
       // await new Promise(resolve => setTimeout(resolve, 2000));
@@ -65,7 +65,7 @@ class Agent {
       return;
     }
     console.log({deltaYaw, deltaPitch});
-    await control.moveMouse(deltaYaw, deltaPitch);
+    await control.moveMouseRelative(deltaYaw, deltaPitch);
     this.directlySetYaw = targetYaw;
   }
 

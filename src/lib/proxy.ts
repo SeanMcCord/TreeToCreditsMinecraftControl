@@ -3,6 +3,7 @@ import mineflayer from 'mineflayer';
 import controls from './gui_direct_control.js';
 import repl from 'repl';
 import Agent from './agent.js';
+import {connectToServer} from './gui_connect_to_server.js';
 
 // TODO: ensure the held item is updated.
 
@@ -22,7 +23,7 @@ const botServerPort = 25566;
 const mineflayerViewerPort = 3011;
 const states = mc.states
 const host = process.env.HOST
-const port = process.env.PORT | 25565
+const port = parseInt(process.env.PORT || '25565')
 const version = process.env.VERSION
 const username = process.env.USERNAME
 const password = process.env.PASSWORD
@@ -37,6 +38,9 @@ const playerServer = mc.createServer({
 })
 
 console.log(`Proxy running at 127.0.0.1:${proxyServerPort}`)
+
+// TODO: move this out
+connectToServer();
 
 playerServer.on('login', (playerClient) => {
   console.log(`${playerClient.username} connected to the proxy`)
@@ -139,7 +143,10 @@ playerServer.on('login', (playerClient) => {
         // console.log('SERVER => B_CLIENT:', meta.name)
         botClient.write(meta.name, data)
         if (meta.name === 'set_compression') {
+          // TODO: remove thise ignores
+          // @ts-ignore
           botClient.compressionThreshold = data.threshold
+          // @ts-ignore
           playerClient.compressionThreshold = data.threshold
         }
       }

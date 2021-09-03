@@ -130,7 +130,7 @@ const transformStateIntoArguements = (state: CompositeKeyStateMap): string => {
     commandSegments.push(`${targetKeyState} --delay 0 ${key}`);
   }
   for (const [key, targetKeyState] of state.mouse.entries()) {
-    commandSegments.push(`${targetKeyState} --delay 0 ${key}`);
+    commandSegments.push(`${targetKeyState} ${key}`);
   }
   return commandSegments.join(" ");
 }
@@ -167,11 +167,25 @@ const generateCommand = (text: string) => {
   }
 };
 
+const moveMouseRelative = async (x: number, y: number) => {
+  try {
+    // -- allows for negative numbers
+    console.log({moveMouseRelative: {x, y}});
+    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool mousemove_relative -- ${x} ${y}`);
+    if (stdout.length !== 0 || stderr.length !== 0) {
+      console.log('stdout:', stdout);
+      console.log('stderr:', stderr);
+    }
+  } catch (err) {
+    console.error(err);
+  };
+};
+
 const moveMouse = async (x: number, y: number) => {
   try {
     // -- allows for negative numbers
     console.log({moveMouse: {x, y}});
-    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool mousemove_relative -- ${x} ${y}`);
+    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool mousemove -- ${x} ${y}`);
     if (stdout.length !== 0 || stderr.length !== 0) {
       console.log('stdout:', stdout);
       console.log('stderr:', stderr);
@@ -200,6 +214,9 @@ const sprintStop = generateKeyboardCommand('ctrl', 'keyup');
 const sneakStart = generateKeyboardCommand('shift', 'keydown');
 const sneakStop = generateKeyboardCommand('shift', 'keyup');
 
+const leftClickDown = generateMouseCommand('1', 'mousedown');
+const leftClickUp = generateMouseCommand('1', 'mouseup');
+
 const wait = async (ms: number) => {
   await new Promise(r => setTimeout(r, ms));
 }
@@ -222,5 +239,8 @@ export default {
   sneakStart,
   sneakStop,
   moveMouse,
-  wait
+  moveMouseRelative,
+  wait,
+  leftClickDown,
+  leftClickUp,
 };
