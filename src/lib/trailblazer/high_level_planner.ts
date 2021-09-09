@@ -30,6 +30,7 @@ export const testPath = (bot, mcData, executionTimeMillis: number, mixmaxFactor:
   const movement = new Movements(bot, mcData);
   movement.allowMutationHistory = true;
   movement.liquidCost = 2;
+  movement.allowParkour = false;
 
   const p = bot.entity.position
   const dy = p.y - Math.floor(p.y)

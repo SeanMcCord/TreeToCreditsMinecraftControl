@@ -1,5 +1,7 @@
 import mc from 'minecraft-protocol';
 import mineflayer from 'mineflayer';
+import {HighLevelControl} from './gui_interactions/high_level_control.js';
+import {PacketToGUI} from './gui_interactions/packet_to_gui.js';
 
 // Based off https://github.com/DecentralisedTech/mineflayer-reflection-proxy
 
@@ -15,8 +17,8 @@ import mineflayer from 'mineflayer';
 //
 // Data Flow Diagram
 //
-// Minecraft Client <-> playerServer <-> serverClient <-> Minecraft Server
-//              bot <-> botServer    <--/
+// Vanilla Minecraft Client <-> playerClient <-> serverClient <-> Minecraft Server
+//                      bot <-> botClient     <--/
 
 // Limitations
 // Inventory clicks from the bot are not sent to the player. This does not seem possible with vanilla clients.
@@ -33,7 +35,7 @@ import mineflayer from 'mineflayer';
 //    nextActionNumber = 0;
 //  }
 
-export const startProxy = (): Promise<any> => {
+export const startProxy = (): Promise<[any, HighLevelControl]> => {
   const proxyServerPort = 25564;
   const botServerPort = 25566;
   const states = mc.states;
@@ -63,6 +65,7 @@ export const startProxy = (): Promise<any> => {
       console.log(`Started Mineflayer server at 127.0.0.1:${botServerPort}`);
 
       let bot;
+      const highLevelControl = new HighLevelControl();
 
       botServer.on('login', (botClient) => {
         console.log('Mineflayer connected to proxy')
@@ -75,6 +78,9 @@ export const startProxy = (): Promise<any> => {
           version: version
         })
         console.log(`Proxy fully connected ${host}:${port}`)
+
+        // TODO: find a better home for this logic.
+        new PacketToGUI(botClient, bot, highLevelControl);
 
         const playerClientPacketHandler = createPlayerClientPacketHandler(serverClient, botClient, bot);
         playerClient.on('packet', playerClientPacketHandler);
@@ -93,7 +99,7 @@ export const startProxy = (): Promise<any> => {
         console.log({bot: e});
         reject(e);
       });
-      resolve(bot);
+      resolve([bot, highLevelControl]);
     })
   });
 }
@@ -125,28 +131,61 @@ const createPlayerClientPacketHandler = (serverClient, botClient, bot) => {
         lastLook.pitch = data.pitch;
         lastLook.yaw = data.yaw;
       }
+      if ('held_item_slot' === meta.name) {
+        // console.log({
+        //   event: 'proxy_held_item_slot',
+        //   slotId: data.slotId,
+        // });
+        // TODO: Find out why this value is named 'slot' in the clientbound packet but 'slotId' in the serverbound packet.
+        // This is the behavior of the vanilla client.
+        // https://wiki.vg/Protocol#Held_Item_Change_.28clientbound.29
+        dataClone = {slot: data.slotId};
+      }
+      if ('set_slot' === meta.name) {
+        // console.log({
+        //   event: 'set_slot',
+        //   ...data
+        // });
+      }
+      if ('open_window' === meta.name) {
+        // console.log({
+        //   event: 'open_window',
+        //   ...data
+        // });
+      }
+      if ('close_window' === meta.name) {
+        // console.log({
+        //   event: 'close_window',
+        //   ...data
+        // });
+      }
       if ('window_click' === meta.name) {
         // console.log({
         //   event: 'proxy_window_click',
         //   lastWindow,
         //   ...data
         // });
-        if (lastWindow.actionId > data.action) {
-          // NOTE: I'm not sure why the action number is not being reset right now.
-          bot.resetWindowsActionNumber();
-        }
-        bot.clickWindow(data.slot, data.mouseButton, data.mode);
+        // if (lastWindow.actionId > data.action) {
+        //   // NOTE: I'm not sure why the action number is not being reset right now.
+        //   bot.resetWindowsActionNumber();
+        // }
+        // For clicks orignating from the vanilla client.
+        // bot.clickWindow(data.slot, data.mouseButton, data.mode);
         lastWindow.windowId = data.windowId;
         lastWindow.actionId = data.action;
       }
 
-      // TODO: determine if this is needed at all. Some test show it might not be.
-      // if ('transaction' === meta.name) {
-      //   console.log({
-      //     event: 'transaction',
-      //     ...data
-      //   });
-      // }
+      // TODO: determine if this is needed at all.Some test show it might not be.
+      if ('transaction' === meta.name) {
+        if (lastWindow.actionId > data.action) {
+          // NOTE: I'm not sure why the action number is not being reset right now.
+          bot.resetWindowsActionNumber();
+        }
+        // console.log({
+        //   event: 'transaction',
+        //   ...data
+        // });
+      }
       botClient.write(metaNameClone, dataClone);
     }
   }
@@ -159,6 +198,12 @@ const createServerClientPacketHandler = (states, playerClient, botClient) => {
     if (meta.state === states.PLAY) {
       // TODO: try this and see if it is more effecient
       // serverClient.writeToClients([playerClient, botClient], meta.name, data);
+      // if ('transaction' === meta.name) {
+      //   console.log({
+      //     event: 'transaction',
+      //     ...data
+      //   });
+      // }
       // console.log('SERVER_CLIENT => P_CLIENT:', meta.name)
       playerClient.write(meta.name, data);
       // console.log('SERVER_CLIENT => B_CLIENT:', meta.name)

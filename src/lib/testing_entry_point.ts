@@ -10,8 +10,8 @@ const botPromise = startProxy();
 
 connectToServer();
 
-botPromise.then((bot) => {
-  const agent = new Agent(bot, {mineflayerViewerPort});
+botPromise.then(([bot, highLevelControl]) => {
+  const agent = new Agent(bot, highLevelControl, {mineflayerViewerPort});
   if (replEnabled) {
     console.log('Created Mineflayer instance')
     const context = repl.start('> ').context;

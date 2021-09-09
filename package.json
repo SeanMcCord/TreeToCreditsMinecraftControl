@@ -16,6 +16,7 @@
   "license": "MIT",
   "private": true,
   "dependencies": {
+    "async-mutex": "^0.3.2",
     "cors": "^2.8.5",
     "express": "^4.17.1",
     "express-graphql": "^0.12.0",

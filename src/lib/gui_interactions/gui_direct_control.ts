@@ -1,6 +1,12 @@
 import util from 'util';
-import {exec} from 'child_process';
+import {exec, spawn} from 'child_process';
 const execP = util.promisify(exec);
+
+// TODO: consider where they control mapping should be stored.
+// Should this expose the keys or the commands that map to keys?
+// i.e. e vs openInventory
+
+// TODO: look more into useing libxdo directly rather than xdotool via child processes.
 
 const keyboardKeys = ['w', 'a', 's', 'd', 'e', 'q', 'ctrl', 'shift', 'space', 'Escape',
   '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'] as const;
@@ -136,13 +142,13 @@ const transformStateIntoArguements = (state: CompositeKeyStateMap): string => {
 }
 
 export const executeState = async (state: CompositeKeyStateMap) => {
-  const arguements = transformStateIntoArguements(state);
-  console.log({arguements});
-  if (arguements.length === 0) {
+  const args = transformStateIntoArguements(state);
+  // console.log({args});
+  if (args.length === 0) {
     return;
   }
   try {
-    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool ${arguements}`);
+    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool ${args}`);
     if (stdout.length !== 0 || stderr.length !== 0) {
       console.log('stdout:', stdout);
       console.log('stderr:', stderr);
@@ -195,6 +201,20 @@ const moveMouse = async (x: number, y: number) => {
   };
 };
 
+export const queryMousePosition = async (): Promise<{x: number, y: number}> => {
+  try {
+    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool getmouselocation`);
+    if (stderr.length !== 0) {
+      console.log('stderr:', stderr);
+    }
+    // Example response 'x:1105 y:442 screen:0 window:67108871'
+    const [x, y] = stdout.split(' ', 2).map(s => parseInt(s.slice(2)));
+    return {x, y};
+  } catch (err) {
+    console.error(err);
+  };
+};
+
 const openInventory = generateCommand('key e');
 const closeInventory = generateCommand('key Escape');
 
@@ -207,6 +227,11 @@ const moveLeftStop = generateKeyboardCommand('a', 'keyup');
 const moveRightStart = generateKeyboardCommand('d', 'keydown');
 const moveRightStop = generateKeyboardCommand('d', 'keyup');
 
+const openInventoryDown = generateKeyboardCommand('e', 'keydown');
+const openInventoryUp = generateKeyboardCommand('e', 'keyup');
+const closeWindowDown = generateKeyboardCommand('Escape', 'keydown');
+const closeWindowUp = generateKeyboardCommand('Escape', 'keyup');
+
 const jumpStart = generateKeyboardCommand('space', 'keydown');
 const jumpStop = generateKeyboardCommand('space', 'keyup');
 const sprintStart = generateKeyboardCommand('ctrl', 'keydown');
@@ -214,8 +239,33 @@ const sprintStop = generateKeyboardCommand('ctrl', 'keyup');
 const sneakStart = generateKeyboardCommand('shift', 'keydown');
 const sneakStop = generateKeyboardCommand('shift', 'keyup');
 
+// TODO: consider adding 'key' as a state.
+// These keys really only need a single press. 
+const oneDown = generateKeyboardCommand('1', 'keydown');
+const oneUp = generateKeyboardCommand('1', 'keyup');
+const twoDown = generateKeyboardCommand('2', 'keydown');
+const twoUp = generateKeyboardCommand('2', 'keyup');
+const threeDown = generateKeyboardCommand('3', 'keydown');
+const threeUp = generateKeyboardCommand('3', 'keyup');
+const fourDown = generateKeyboardCommand('4', 'keydown');
+const fourUp = generateKeyboardCommand('4', 'keyup');
+const fiveDown = generateKeyboardCommand('5', 'keydown');
+const fiveUp = generateKeyboardCommand('5', 'keyup');
+const sixDown = generateKeyboardCommand('6', 'keydown');
+const sixUp = generateKeyboardCommand('6', 'keyup');
+const sevenDown = generateKeyboardCommand('7', 'keydown');
+const sevenUp = generateKeyboardCommand('7', 'keyup');
+const eightDown = generateKeyboardCommand('8', 'keydown');
+const eightUp = generateKeyboardCommand('8', 'keyup');
+const nineDown = generateKeyboardCommand('9', 'keydown');
+const nineUp = generateKeyboardCommand('9', 'keyup');
+const zeroDown = generateKeyboardCommand('0', 'keydown');
+const zeroUp = generateKeyboardCommand('0', 'keyup');
+
 const leftClickDown = generateMouseCommand('1', 'mousedown');
 const leftClickUp = generateMouseCommand('1', 'mouseup');
+const rightClickDown = generateMouseCommand('3', 'mousedown');
+const rightClickUp = generateMouseCommand('3', 'mouseup');
 
 const wait = async (ms: number) => {
   await new Promise(r => setTimeout(r, ms));
@@ -232,6 +282,10 @@ export default {
   moveLeftStop,
   moveRightStart,
   moveRightStop,
+  openInventoryDown,
+  openInventoryUp,
+  closeWindowDown,
+  closeWindowUp,
   jumpStart,
   jumpStop,
   sprintStart,
@@ -241,6 +295,28 @@ export default {
   moveMouse,
   moveMouseRelative,
   wait,
+  oneDown,
+  oneUp,
+  twoDown,
+  twoUp,
+  threeDown,
+  threeUp,
+  fourDown,
+  fourUp,
+  fiveDown,
+  fiveUp,
+  sixDown,
+  sixUp,
+  sevenDown,
+  sevenUp,
+  eightDown,
+  eightUp,
+  nineDown,
+  nineUp,
+  zeroDown,
+  zeroUp,
   leftClickDown,
   leftClickUp,
+  rightClickDown,
+  rightClickUp,
 };
