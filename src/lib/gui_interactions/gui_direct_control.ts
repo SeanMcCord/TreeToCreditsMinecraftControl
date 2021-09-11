@@ -1,6 +1,6 @@
 import util from 'util';
-import {exec, spawn} from 'child_process';
-const execP = util.promisify(exec);
+import {execFile} from 'child_process';
+const execFileP = util.promisify(execFile);
 
 // TODO: consider where they control mapping should be stored.
 // Should this expose the keys or the commands that map to keys?
@@ -130,25 +130,26 @@ const generateMouseCommand = (key: MouseKeys, targetKeyState: MouseKeyStates) =>
 }
 
 
-const transformStateIntoArguements = (state: CompositeKeyStateMap): string => {
+const transformStateIntoArguements = (state: CompositeKeyStateMap): Array<string> => {
   const commandSegments: Array<string> = [];
   for (const [key, targetKeyState] of state.keyboard.entries()) {
-    commandSegments.push(`${targetKeyState} --delay 0 ${key}`);
+    commandSegments.push(targetKeyState, '--delay', '0', key);
   }
   for (const [key, targetKeyState] of state.mouse.entries()) {
-    commandSegments.push(`${targetKeyState} ${key}`);
+    commandSegments.push(targetKeyState, key);
   }
-  return commandSegments.join(" ");
+  return commandSegments;
 }
 
 export const executeState = async (state: CompositeKeyStateMap) => {
+  console.trace();
   const args = transformStateIntoArguements(state);
-  // console.log({args});
+  console.log({args});
   if (args.length === 0) {
     return;
   }
   try {
-    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool ${args}`);
+    const {stdout, stderr} = await execFileP('xdotool', args, {env: {'DISPLAY': ':0'}});
     if (stdout.length !== 0 || stderr.length !== 0) {
       console.log('stdout:', stdout);
       console.log('stderr:', stderr);
@@ -158,11 +159,11 @@ export const executeState = async (state: CompositeKeyStateMap) => {
   };
 }
 
-const generateCommand = (text: string) => {
+const generateCommand = (args: Array<string>) => {
   return async function () {
-    console.log(text);
+    console.log(args);
     try {
-      const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool ${text}`);
+      const {stdout, stderr} = await execFileP('xdotool', args, {env: {'DISPLAY': ':0'}});
       if (stdout.length !== 0 || stderr.length !== 0) {
         console.log('stdout:', stdout);
         console.log('stderr:', stderr);
@@ -177,7 +178,8 @@ const moveMouseRelative = async (x: number, y: number) => {
   try {
     // -- allows for negative numbers
     console.log({moveMouseRelative: {x, y}});
-    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool mousemove_relative -- ${x} ${y}`);
+    const {stdout, stderr} = await execFileP('xdotool', ['mousemove_relative', '--', x.toString(), y.toString()], {env: {'DISPLAY': ':0'}});
+    console.log('mousemove_relative done');
     if (stdout.length !== 0 || stderr.length !== 0) {
       console.log('stdout:', stdout);
       console.log('stderr:', stderr);
@@ -186,12 +188,16 @@ const moveMouseRelative = async (x: number, y: number) => {
     console.error(err);
   };
 };
+// TODO: find out why we need to move a small ammount first.
+const jiggleMouseHackPleaseFix = async () => {
+  await moveMouseRelative(10, 0);
+}
 
 const moveMouse = async (x: number, y: number) => {
   try {
     // -- allows for negative numbers
     console.log({moveMouse: {x, y}});
-    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool mousemove -- ${x} ${y}`);
+    const {stdout, stderr} = await execFileP('xdotool', ['mousemove', '--', x.toString(), y.toString()], {env: {'DISPLAY': ':0'}});
     if (stdout.length !== 0 || stderr.length !== 0) {
       console.log('stdout:', stdout);
       console.log('stderr:', stderr);
@@ -203,7 +209,7 @@ const moveMouse = async (x: number, y: number) => {
 
 export const queryMousePosition = async (): Promise<{x: number, y: number}> => {
   try {
-    const {stdout, stderr} = await execP(`DISPLAY=:0 xdotool getmouselocation`);
+    const {stdout, stderr} = await execFileP('xdotool', ['getmouselocation'], {env: {'DISPLAY': ':0'}});
     if (stderr.length !== 0) {
       console.log('stderr:', stderr);
     }
@@ -215,8 +221,8 @@ export const queryMousePosition = async (): Promise<{x: number, y: number}> => {
   };
 };
 
-const openInventory = generateCommand('key e');
-const closeInventory = generateCommand('key Escape');
+// const openInventory = generateCommand(['key', 'e']);
+// const closeInventory = generateCommand(['key', 'Escape']);
 
 const moveForwardStart = generateKeyboardCommand('w', 'keydown');
 const moveForwardStop = generateKeyboardCommand('w', 'keyup');
@@ -229,8 +235,8 @@ const moveRightStop = generateKeyboardCommand('d', 'keyup');
 
 const openInventoryDown = generateKeyboardCommand('e', 'keydown');
 const openInventoryUp = generateKeyboardCommand('e', 'keyup');
-const closeWindowDown = generateKeyboardCommand('Escape', 'keydown');
-const closeWindowUp = generateKeyboardCommand('Escape', 'keyup');
+const closeWindowDown = generateKeyboardCommand('e', 'keydown');
+const closeWindowUp = generateKeyboardCommand('e', 'keyup');
 
 const jumpStart = generateKeyboardCommand('space', 'keydown');
 const jumpStop = generateKeyboardCommand('space', 'keyup');
@@ -272,8 +278,8 @@ const wait = async (ms: number) => {
 }
 
 export default {
-  openInventory,
-  closeInventory,
+  // openInventory,
+  // closeInventory,
   moveForwardStart,
   moveForwardStop,
   moveBackStart,
@@ -294,6 +300,7 @@ export default {
   sneakStop,
   moveMouse,
   moveMouseRelative,
+  jiggleMouseHackPleaseFix,
   wait,
   oneDown,
   oneUp,

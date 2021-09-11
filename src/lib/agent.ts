@@ -18,6 +18,7 @@ import {VelocityEstimator} from './velocity_estimator.js';
 import {PacketToGUI} from './gui_interactions/packet_to_gui.js';
 import vec3 from 'vec3';
 import {HighLevelControl} from './gui_interactions/high_level_control.js';
+import {getPositionsWithinEntityBoundingBox} from './axis_aligned_bouding_box.js';
 
 // TODO: ensure only inventory operations do not occur while moving via key commands
 
@@ -52,11 +53,15 @@ class Agent {
     this.mineflayerBot.once('spawn', async () => {
       this.directlySetYaw = this.mineflayerBot.entity.yaw;
       this.moveExecutor = new MoveExecutor(this.mineflayerBot, this.velocityEstimator, highLevelControl);
-      // TODO: find out why we need to move a small ammount first.
-      control.moveMouseRelative(10, 0);
+      await control.jiggleMouseHackPleaseFix();
       mineflayerViewer(this.mineflayerBot, {port: config.mineflayerViewerPort});
       // await this.mineflayerBot.waitForChunksToLoad();
-      // await new Promise(resolve => setTimeout(resolve, 2000));
+
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await this.makeAndPlaceCraftingTableTest();
+      mineflayerBot.quit();
+      process.exit();
+
       // this.testPath(40, 0.0, 0.0000000000000000000001, 0.0, 400, 0.0, 0.0, 0.0, 0.8, {x: 100, y: 10, z: 40}).then((r) => {
       // this.getPath({x: 100, y: 10, z: -40}, 10000).then((r) => {
       //   mineflayerBot.quit();
@@ -228,13 +233,68 @@ class Agent {
     }
   }
 
-  async makeAndPlaceCraftingTable() {
+  async makeAndPlaceCraftingTableTest() {
     const startTime = performance.now();
     const oakPlankRecipes = this.mineflayerBot.recipesFor(this.mcData.itemsByName.oak_planks.id)
     await this.mineflayerBot.craft(oakPlankRecipes[0]);
     const craftingTableRecipes = this.mineflayerBot.recipesFor(this.mcData.itemsByName.crafting_table.id)
     await this.mineflayerBot.craft(craftingTableRecipes[0]);
     console.log({deltaT: performance.now() - startTime});
+    await this.mineflayerBot.equip(this.mcData.itemsByName.crafting_table.id);
+
+    const placeBlockNearby = async (): Promise<any> => {
+      // TODO: make this filter out blocks better.
+      const placeCandidates = this.mineflayerBot.findBlocks({matching: (b) => b.boundingBox === 'empty', maxDistance: 10, count: 600});
+      console.log({placeCandidates, count: placeCandidates.length});
+      let finalPosition;
+      const botPositions = getPositionsWithinEntityBoundingBox(this.mineflayerBot.entity);
+      console.log({botPositions});
+      for (const candidate of placeCandidates) {
+        if (botPositions.some(p => candidate.equals(p))) {
+          continue;
+        }
+        const result = await this.moveExecutor.placeBlock(candidate.x, candidate.y, candidate.z);
+        if (result) {
+          finalPosition = candidate;
+          break;
+        }
+      }
+      return finalPosition;
+    }
+
+    const craftingTablePosition = await placeBlockNearby();
+    if (craftingTablePosition == null) {
+      console.log('failed to place table');
+      return;
+    } else {
+      console.log({craftingTablePosition});
+      // Ensure that the world gets updated.
+    }
+
+    // craft furnace
+    const craftingTable = this.mineflayerBot.blockAt(craftingTablePosition);
+    console.log({craftingTable});
+    const furnaceRecipes = this.mineflayerBot.recipesFor(this.mcData.itemsByName.furnace.id, null, 1, craftingTable)
+    console.log({furnaceRecipes});
+    // TODO: how to ensure the bot can activate the crafting table?
+    await this.moveExecutor.lookAtBlockSurface(craftingTable.position.x, craftingTable.position.y, craftingTable.position.z);
+    await this.mineflayerBot.craft(furnaceRecipes[0], 1, craftingTable);
+    // place furnace nearby
+    console.log('equip furnace');
+    await this.mineflayerBot.equip(this.mcData.itemsByName.furnace.id);
+
+    console.log('place furnace nearby');
+    await placeBlockNearby();
+  }
+
+  async openFurnaceAndSmeltTest() {
+    const furnace = this.mineflayerBot.findBlock({matching: this.mcData.blocksByName.furnace.id});
+    await this.moveExecutor.lookAtBlockSurface(furnace.x, furnace.y, furnace.z);
+    const furnaceContainer = await this.mineflayerBot.openFurnace(furnace);
+    console.log(this.mineflayerBot.currentWindow);
+    await furnaceContainer.putInput(this.mcData.itemsByName.oak_log.id, null, 1);
+    await furnaceContainer.putFuel(this.mcData.itemsByName.oak_log.id, null, 1);
+    await furnaceContainer.close();
   }
 }
 

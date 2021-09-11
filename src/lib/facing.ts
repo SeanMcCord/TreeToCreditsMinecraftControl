@@ -15,6 +15,7 @@ export const getFacingToBlock = (bot, block): Array<any> => {
   // Check faces that could be seen from the current position. If the delta is smaller then 0.5 that means the
   // bot cam most likely not see the face as the block is 1 block thick
   // this could be false for blocks that have a smaller bounding box then 1x1x1
+  // TODO: check if these are correct
   const dx = bot.entity.position.x - block.position.x + 0.5
   const dy = bot.entity.position.y - block.position.y - 0.5 + bot.entity.height // -0.5 because the bot position
   // is calculated from the block position that is inside its feet so 0.5 - 1 = -0.5
@@ -51,14 +52,18 @@ export const getFacingToBlock = (bot, block): Array<any> => {
   return validFaces;
 }
 
-export const getFacingToNeighborBlock = (bot, block): Array<any> => {
+// Finds some points in the world that when targeted allow for placing a block in the given block.
+// It aims to answer the question of where to look in order to place a block in a target position.
+// TODO: handle not whole blocks.
+// TODO: handle target blocks that allow breaking on target, such as grass. (This may already work, not tested)
+export const getFacingToNeighborBlock = (world, botPosition, botHeight, block): Array<any> => {
   // Check faces that could be seen from the current position. If the delta is smaller then 0.5 that means the
   // bot cam most likely not see the face as the block is 1 block thick
   // this could be false for blocks that have a smaller bounding box then 1x1x1
-  const dx = bot.entity.position.x - (block.position.x + 0.5)
-  const dy = bot.entity.position.y - block.position.y - 0.5 + bot.entity.height // -0.5 because the bot position
+  const dx = botPosition.x - (block.position.x + 0.5)
+  const dy = botPosition.y - block.position.y - 0.5 + botHeight // -0.5 because the bot position
   // is calculated from the block position that is inside its feet so 0.5 - 1 = -0.5
-  const dz = bot.entity.position.z - (block.position.z + 0.5)
+  const dz = botPosition.z - (block.position.z + 0.5)
   // Example: block is x: 1, y: 10, z: 1, bot head is at x: 1.5, y: 10.6, z: 1.5
   // dx: 0, dy: 0.1, dz: 0
 
@@ -75,12 +80,12 @@ export const getFacingToNeighborBlock = (bot, block): Array<any> => {
   console.log({dx, dy, dz});
   console.dir(visibleFaces, {depth: null});
   const validFaces = []
-  const startPos = bot.entity.position.offset(0, bot.entity.height, 0)
+  const startPos = botPosition.offset(0, botHeight, 0)
   for (const faceDirection of visibleFaces) {
     if (faceDirection.x === 0 && faceDirection.y === 0 && faceDirection.z === 0) continue // skip as this face is not visible
     // target position on the target block face. -> 0.5 + (current face) * 0.5
     const targetPos = block.position.offset(0.5 + faceDirection.x, 0.5 + faceDirection.y, 0.5 + faceDirection.z)
-    const rayBlock = bot.world.raycast(startPos, targetPos.clone().subtract(startPos).normalize(), MAX_POTENTIAL_REACH_DISTANCE)
+    const rayBlock = world.raycast(startPos, targetPos.clone().subtract(startPos).normalize(), MAX_POTENTIAL_REACH_DISTANCE)
     if (rayBlock) {
       const rayPos = rayBlock.position
       const expectedNeighborPos = block.position.clone().offset(Math.sign(faceDirection.x), Math.sign(faceDirection.y), Math.sign(faceDirection.z));
@@ -88,6 +93,7 @@ export const getFacingToNeighborBlock = (bot, block): Array<any> => {
         const distance = rayBlock.intersect.distanceTo(startPos);
         if (distance <= MAX_REACH_DISTANCE) {
           validFaces.push({
+            block: rayBlock,
             face: rayBlock.face,
             targetPos: rayBlock.intersect,
             distance,

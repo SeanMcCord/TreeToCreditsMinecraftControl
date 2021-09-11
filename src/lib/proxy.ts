@@ -148,10 +148,10 @@ const createPlayerClientPacketHandler = (serverClient, botClient, bot) => {
         // });
       }
       if ('open_window' === meta.name) {
-        // console.log({
-        //   event: 'open_window',
-        //   ...data
-        // });
+        console.log({
+          event: 'open_window',
+          ...data
+        });
       }
       if ('close_window' === meta.name) {
         // console.log({
@@ -160,13 +160,21 @@ const createPlayerClientPacketHandler = (serverClient, botClient, bot) => {
         // });
       }
       if ('window_click' === meta.name) {
-        // console.log({
-        //   event: 'proxy_window_click',
-        //   lastWindow,
-        //   ...data
-        // });
+        console.log({
+          event: 'proxy_window_click',
+          lastWindow,
+          ...data
+        });
+        if (lastWindow.windowId !== data.windowId) {
+          // NOTE: I'm not sure why the action number is not being reset right now.
+          // bot.resetWindowsActionNumber();
+          // console.log('windowActionIdReset');
+        }
         // if (lastWindow.actionId > data.action) {
         //   // NOTE: I'm not sure why the action number is not being reset right now.
+        //   // This seems to be what the vanilla client does. Mineflayer does not reset this value until it
+        //   // hits 32767.
+        //   // https://github.com/PrismarineJS/mineflayer/blob/a0befeb042fe3851ac35887da116c2910f505791/lib/plugins/inventory.js#L311
         //   bot.resetWindowsActionNumber();
         // }
         // For clicks orignating from the vanilla client.
@@ -177,14 +185,10 @@ const createPlayerClientPacketHandler = (serverClient, botClient, bot) => {
 
       // TODO: determine if this is needed at all.Some test show it might not be.
       if ('transaction' === meta.name) {
-        if (lastWindow.actionId > data.action) {
-          // NOTE: I'm not sure why the action number is not being reset right now.
-          bot.resetWindowsActionNumber();
-        }
-        // console.log({
-        //   event: 'transaction',
-        //   ...data
-        // });
+        console.log({
+          event: 'transaction',
+          ...data
+        });
       }
       botClient.write(metaNameClone, dataClone);
     }
@@ -198,12 +202,12 @@ const createServerClientPacketHandler = (states, playerClient, botClient) => {
     if (meta.state === states.PLAY) {
       // TODO: try this and see if it is more effecient
       // serverClient.writeToClients([playerClient, botClient], meta.name, data);
-      // if ('transaction' === meta.name) {
-      //   console.log({
-      //     event: 'transaction',
-      //     ...data
-      //   });
-      // }
+      if ('transaction' === meta.name) {
+        console.log({
+          event: 'transaction',
+          ...data
+        });
+      }
       // console.log('SERVER_CLIENT => P_CLIENT:', meta.name)
       playerClient.write(meta.name, data);
       // console.log('SERVER_CLIENT => B_CLIENT:', meta.name)
