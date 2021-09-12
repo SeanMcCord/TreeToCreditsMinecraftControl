@@ -126,16 +126,16 @@ export class MoveExecutor {
     const targetBlock = this.mineflayerBot.blockAt(vec3([targetX, targetY, targetZ]), false);
     const sneak = true;
     // TODO: extract out the height constants. In game we drop by 3/8 of a block when sneaking. This was done by testing in game.
-    const height = sneak ? this.mineflayerBot.entity.height - (3 / 8) : this.mineflayerBot.entity.height;
+    const height = sneak ? this.mineflayerBot.entity.height - (2 / 8) : this.mineflayerBot.entity.height;
     const facings = getFacingToNeighborBlock(this.mineflayerBot.world, this.mineflayerBot.entity.position, height, targetBlock);
-    console.log({facings});
+    // console.log({facings});
     const closestFacing = facings.sort((a, b) => a.distance - b.distance)?.[0];
     if (closestFacing == null) return false;
     console.log({closestFacing});
 
     const closestBlock = closestFacing.block;
     const facingVector = targetBlock.position.clone().minus(closestBlock.position);
-    console.log({targetPosition: targetBlock.position, facingVector});
+    // console.log({targetPosition: targetBlock.position, facingVector});
     await this.highLevelControl.exlusiveGUI(new Set(['movement']), async (currentScope, currentState, executeGlobalState) => {
       const sneakState = control.sneakStart(clearedState());
       await executeGlobalState(sneakState);

@@ -142,9 +142,9 @@ const transformStateIntoArguements = (state: CompositeKeyStateMap): Array<string
 }
 
 export const executeState = async (state: CompositeKeyStateMap) => {
-  console.trace();
+  // console.trace();
   const args = transformStateIntoArguements(state);
-  console.log({args});
+  // console.log({args});
   if (args.length === 0) {
     return;
   }
@@ -178,7 +178,7 @@ const moveMouseRelative = async (x: number, y: number) => {
   try {
     // -- allows for negative numbers
     console.log({moveMouseRelative: {x, y}});
-    const {stdout, stderr} = await execFileP('xdotool', ['mousemove_relative', '--', x.toString(), y.toString()], {env: {'DISPLAY': ':0'}});
+    const {stdout, stderr} = await execFileP('xdotool', ['mousemove_relative', '--sync', '--', x.toString(), y.toString()], {env: {'DISPLAY': ':0'}});
     console.log('mousemove_relative done');
     if (stdout.length !== 0 || stderr.length !== 0) {
       console.log('stdout:', stdout);
@@ -197,7 +197,7 @@ const moveMouse = async (x: number, y: number) => {
   try {
     // -- allows for negative numbers
     console.log({moveMouse: {x, y}});
-    const {stdout, stderr} = await execFileP('xdotool', ['mousemove', '--', x.toString(), y.toString()], {env: {'DISPLAY': ':0'}});
+    const {stdout, stderr} = await execFileP('xdotool', ['mousemove', '--sync', '--', x.toString(), y.toString()], {env: {'DISPLAY': ':0'}});
     if (stdout.length !== 0 || stderr.length !== 0) {
       console.log('stdout:', stdout);
       console.log('stderr:', stderr);

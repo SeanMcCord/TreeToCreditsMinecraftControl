@@ -148,10 +148,10 @@ const createPlayerClientPacketHandler = (serverClient, botClient, bot) => {
         // });
       }
       if ('open_window' === meta.name) {
-        console.log({
-          event: 'open_window',
-          ...data
-        });
+        // console.log({
+        //   event: 'open_window',
+        //   ...data
+        // });
       }
       if ('close_window' === meta.name) {
         // console.log({
@@ -160,16 +160,16 @@ const createPlayerClientPacketHandler = (serverClient, botClient, bot) => {
         // });
       }
       if ('window_click' === meta.name) {
-        console.log({
-          event: 'proxy_window_click',
-          lastWindow,
-          ...data
-        });
-        if (lastWindow.windowId !== data.windowId) {
-          // NOTE: I'm not sure why the action number is not being reset right now.
-          // bot.resetWindowsActionNumber();
-          // console.log('windowActionIdReset');
-        }
+        // console.log({
+        //   event: 'proxy_window_click',
+        //   lastWindow,
+        //   ...data
+        // });
+        // if (lastWindow.windowId !== data.windowId) {
+        // NOTE: I'm not sure why the action number is not being reset right now.
+        // bot.resetWindowsActionNumber();
+        // console.log('windowActionIdReset');
+        //  }
         // if (lastWindow.actionId > data.action) {
         //   // NOTE: I'm not sure why the action number is not being reset right now.
         //   // This seems to be what the vanilla client does. Mineflayer does not reset this value until it
@@ -186,7 +186,7 @@ const createPlayerClientPacketHandler = (serverClient, botClient, bot) => {
       // TODO: determine if this is needed at all.Some test show it might not be.
       if ('transaction' === meta.name) {
         console.log({
-          event: 'transaction',
+          event: 'player_client transaction',
           ...data
         });
       }
@@ -200,11 +200,9 @@ const createServerClientPacketHandler = (states, playerClient, botClient) => {
   const serverClientPacketHandler = (data, meta) => {
     // console.log('SERVER_CLIENT => CLIENT:', meta.name)
     if (meta.state === states.PLAY) {
-      // TODO: try this and see if it is more effecient
-      // serverClient.writeToClients([playerClient, botClient], meta.name, data);
       if ('transaction' === meta.name) {
         console.log({
-          event: 'transaction',
+          event: 'server_client transaction',
           ...data
         });
       }

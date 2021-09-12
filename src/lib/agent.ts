@@ -278,12 +278,16 @@ class Agent {
     console.log({furnaceRecipes});
     // TODO: how to ensure the bot can activate the crafting table?
     await this.moveExecutor.lookAtBlockSurface(craftingTable.position.x, craftingTable.position.y, craftingTable.position.z);
-    await this.mineflayerBot.craft(furnaceRecipes[0], 1, craftingTable);
+    await this.mineflayerBot.craft(furnaceRecipes[0], 3, craftingTable);
+    // Test to ensure window closes before moving forward.
+    await control.wait(100);
     // place furnace nearby
     console.log('equip furnace');
     await this.mineflayerBot.equip(this.mcData.itemsByName.furnace.id);
 
     console.log('place furnace nearby');
+    await placeBlockNearby();
+    await placeBlockNearby();
     await placeBlockNearby();
   }
 

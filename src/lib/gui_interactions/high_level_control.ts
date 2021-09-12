@@ -21,20 +21,13 @@ export class HighLevelControl {
   constructor() {
   }
 
-  async setScope(scope: Scope) {
-    // await this.mutex.runExclusive(async () => {
-    this.currentScope = scope;
-    console.log(`scope set to '${scope}'`);
-    // });
-  }
-
   async exlusiveGUI(requiredScope: Set<Scope>, callback) {
     // TODO: consider a less dangerous way of handling conditions. Enforce a timeout perhaps
     let executed = false;
     for (; ;) {
       await this.mutex.runExclusive(async () => {
         if (requiredScope.has(this.currentScope)) {
-          await callback(this.currentScope, this.currentState, this.executeState.bind(this));
+          await callback(this.currentScope, this.currentState, this.executeState.bind(this), this.setScope.bind(this));
           executed = true;
         }
       });
@@ -43,10 +36,17 @@ export class HighLevelControl {
       } else {
         console.log(`lock aquired with wrong scope. scope required '${Array.from(requiredScope)}'`);
         await new Promise(r => setTimeout(r, 20));
-        // TODO: test if this runs too fast and needs a sleep. I assume it does.
       }
     }
   }
+
+  private setScope(scope: Scope) {
+    // await this.mutex.runExclusive(async () => {
+    this.currentScope = scope;
+    console.log(`scope set to '${scope}'`);
+    // });
+  }
+
 
   private async executeState(targetState) {
     await executeState(targetState);
