@@ -89,11 +89,7 @@ export class PacketToGUI {
         console.log('click window done');
       });
     }
-    // mineflayer doesn't close the inventory, but we need to.
-    // This requires a change to all the mineflayer simple inventory operations.
-    // https://github.com/PrismarineJS/mineflayer/blob/487c9a3f579d429de0af7fa6415b585ffcd372ee/lib/plugins/simple_inventory.js#L52
-    // Where at the end of every call we close the inventory. This is the behavior
-    // of the vanilla client.
+    // TODO: I think I can delete this open_window and use the one on the bot._client above.
     if (meta.name === 'open_window') {
       // console.log({
       //   event: 'from_bot',
@@ -106,6 +102,11 @@ export class PacketToGUI {
         console.log('open window done');
       });
     }
+    // mineflayer doesn't close the inventory, but we need to.
+    // This requires a change to all the mineflayer simple inventory operations.
+    // https://github.com/PrismarineJS/mineflayer/blob/487c9a3f579d429de0af7fa6415b585ffcd372ee/lib/plugins/simple_inventory.js#L52
+    // Where at the end of every call we close the inventory. This is the behavior
+    // of the vanilla client.
     if (meta.name === 'close_window') {
       // console.log({
       //   event: 'from_bot',
