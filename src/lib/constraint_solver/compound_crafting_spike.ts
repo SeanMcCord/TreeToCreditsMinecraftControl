@@ -7,7 +7,7 @@ interface Item {
 
 interface CraftingStep {
   requiredInvocationCount: number;
-  fesibleInvocationCount: number;
+  feasibleInvocationCount: number;
   craftingSource: CraftingSource;
 }
 
@@ -33,10 +33,10 @@ const applyCraftingStepToInventory = (craftingStep: CraftingStep, inventory: Inv
   });
   craftingStep.craftingSource.ingredients.forEach((ingredientQuantity, ingredientId) => {
     const inventoryQuantity = inventoryClone.get(ingredientId);
-    inventoryQuantity.quantity -= ingredientQuantity * craftingStep.fesibleInvocationCount;
+    inventoryQuantity.quantity -= ingredientQuantity * craftingStep.feasibleInvocationCount;
   });
   const itemResult = craftingStep.craftingSource.result;
-  const resultCount = itemResult.count * craftingStep.fesibleInvocationCount;
+  const resultCount = itemResult.count * craftingStep.feasibleInvocationCount;
   if (inventoryClone.has(itemResult.itemId)) {
     const inventoryQuantity = inventoryClone.get(itemResult.itemId);
     inventoryQuantity.quantity += resultCount;
@@ -61,8 +61,8 @@ const craftingSourceSatisfiedCount = (craftingSource: CraftingSource, inventory:
 
 const craftingStepForSource = (craftingSource: CraftingSource, minQuantity: number, inventory: Inventory): CraftingStep => {
   const requiredInvocationCount = Math.ceil(minQuantity / craftingSource.result.count);
-  const fesibleInvocationCount = craftingSourceSatisfiedCount(craftingSource, inventory);
-  return {requiredInvocationCount, fesibleInvocationCount, craftingSource};
+  const feasibleInvocationCount = craftingSourceSatisfiedCount(craftingSource, inventory);
+  return {requiredInvocationCount, feasibleInvocationCount, craftingSource};
 }
 
 const findCompoundCraftingPlanForTest = (itemId: number, minQuantity: number, inventory: Inventory, craftingSources, depth: number) => {
@@ -74,7 +74,7 @@ const findCompoundCraftingPlanForTest = (itemId: number, minQuantity: number, in
   craftingSources.forEach((craftingSource: CraftingSource) => {
     if (craftingSource.result.itemId !== itemId) return;
     const partial = craftingStepForSource(craftingSource, minQuantity, inventory);
-    partial.requiredInvocationCount <= partial.fesibleInvocationCount ? satisfiedPlans.push({steps: [partial]}) : unsatisfiedPartials.push({steps: [partial]});
+    partial.requiredInvocationCount <= partial.feasibleInvocationCount ? satisfiedPlans.push({steps: [partial]}) : unsatisfiedPartials.push({steps: [partial]});
   });
 
   while (unsatisfiedPartials.length > 0) {
@@ -110,7 +110,7 @@ const findCompoundCraftingPlanForTest = (itemId: number, minQuantity: number, in
         const firstPlan = subPlans.satisfiedPlans[0];
         partial.steps.push(...firstPlan.steps);
       });
-      unsatisfiedStep.fesibleInvocationCount = unsatisfiedStep.requiredInvocationCount;
+      unsatisfiedStep.feasibleInvocationCount = unsatisfiedStep.requiredInvocationCount;
       satisfiedPlans.push(partial);
     }
   }
